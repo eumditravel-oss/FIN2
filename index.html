@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FIN 산출자료 (Web)</title>
+  <link rel="stylesheet" href="styles.css?v=14" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="title">FIN 산출자료 (Web)</div>
+      <div class="sub">산출식 → 물량 자동계산 · 자동환산/할증 · 자동집계 · 로컬저장</div>
+      <div class="hint">
+        코드 선택 새 창: <b>Ctrl+.</b> · (새 창에서) <b>Ctrl+B</b> 다중선택 · <b>Ctrl+Enter</b> 삽입
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btnOpenPicker" class="btn">코드 선택 (Ctrl+.)</button>
+      <button id="btnExport" class="btn">내보내기(EXCEL)</button>
+
+      <label class="btn ghost">
+        가져오기(EXCEL)
+        <input
+          id="fileImport"
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+        />
+      </label>
+
+      <button id="btnReset" class="btn danger">초기화</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <main class="content">
+    <section id="view"></section>
+  </main>
+
+  <footer class="footer">
+    <div>
+      ※ 집계 탭: “할증전수량/할증후수량” 코드별 합계 ·
+      (구분 개소 반영, 환산단위/계수 있으면 환산후수량 기준)
+    </div>
+  </footer>
+
+  <!-- ✅ XLSX 라이브러리 (필수) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- 앱 코드 -->
+  <script src="app.js?v=20"></script>
+</body>
+</html>
