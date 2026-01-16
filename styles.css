@@ -1,7 +1,7 @@
 :root{
-  /* ===== Theme: Orange UI (like your screenshot) ===== */
-  --bg:#f3f1ee;                 /* 전체 배경(밝은 회백) */
-  --paper:#ffffff;              /* 카드/패널 */
+  /* ===== Theme: Orange UI (logo title + underline tabs) ===== */
+  --bg:#f3f1ee;
+  --paper:#ffffff;
   --ink:#1d1d1f;
   --muted:#6b6b73;
 
@@ -13,9 +13,8 @@
 
   --radius: 18px;
 
-  /* ✅ 포인트 컬러를 오렌지로 */
-  --accent:#f08a24;
-  --accent2:#ffb55a;
+  --accent:#f08a24;     /* 오렌지 */
+  --accent2:#ffb55a;    /* 밝은 오렌지 */
 
   --topbarH: 0px;
   --tabsH: 0px;
@@ -31,7 +30,6 @@
 *{ box-sizing:border-box; }
 html,body{ height:100%; }
 
-/* ✅ 페이지 전체 스크롤 제거 + 앱 레이아웃 고정 */
 body{
   margin:0;
   height:100vh;
@@ -42,7 +40,6 @@ body{
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", "Malgun Gothic";
   color:var(--ink);
 
-  /* 밝고 깔끔한 배경 + 은은한 오렌지 하이라이트 */
   background:
     radial-gradient(1200px 680px at 10% 0%, rgba(240,138,36,.12), transparent 55%),
     radial-gradient(900px 520px at 90% 15%, rgba(255,181,90,.10), transparent 55%),
@@ -61,21 +58,44 @@ body{
   gap:16px;
   padding: 14px 16px;
 
-  background: rgba(255,255,255,.92);
+  background: rgba(255,255,255,.94);
   backdrop-filter: blur(10px);
-
   border-bottom: 1px solid var(--softLine);
   box-shadow: 0 8px 22px rgba(0,0,0,.08);
   flex:0 0 auto;
 }
 
+/* ✅ 타이틀 주황 강조(로고 느낌) */
+.brand{ display:flex; flex-direction:column; gap:4px; }
 .brand .title{
-  font-weight: 900;
-  letter-spacing: -0.2px;
+  font-weight: 1000;
+  letter-spacing: -0.4px;
   font-size: 18px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  line-height: 1.1;
 }
-.brand .sub{ margin-top: 4px; color: var(--muted); font-size: 12px; }
-.brand .hint{ margin-top: 8px; color: var(--muted); font-size: 12px; }
+.brand .title::before{
+  content:"";
+  width: 28px;
+  height: 16px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--accent2), var(--accent));
+  box-shadow: 0 10px 20px rgba(240,138,36,.25);
+  transform: skewX(-12deg);
+}
+.brand .title{
+  color: #222;
+}
+.brand .title span{ color: #222; }
+
+/* 타이틀 텍스트 일부만 오렌지로 강조하고 싶으면(HTML 수정 없이) 전체에 톤만 줌 */
+.brand .title{
+  text-shadow: 0 1px 0 rgba(255,255,255,.8);
+}
+.brand .sub{ color: var(--muted); font-size: 12px; }
+.brand .hint{ color: var(--muted); font-size: 12px; }
 .brand .hint b{ color: var(--accent); }
 
 .actions{
@@ -86,13 +106,13 @@ body{
   justify-content:flex-end;
 }
 
-/* ===== Buttons ===== */
+/* ===== Buttons (캡슐 → 각진 라운드) ===== */
 .btn,
 .smallbtn{
   appearance:none;
-  border:1px solid rgba(240,138,36,.35);
+  border:1px solid rgba(0,0,0,.12);
   background: rgba(255,255,255,.92);
-  border-radius: 12px;
+  border-radius: 10px;     /* ✅ 동그라미 제거 */
   cursor:pointer;
   font-weight: 900;
   color: var(--ink);
@@ -109,60 +129,69 @@ body{
 .btn{ padding: 10px 12px; }
 .smallbtn{
   padding: 8px 10px;
-  border-radius: 999px;
+  border-radius: 10px;     /* ✅ 동그라미 제거 */
   box-shadow: 0 12px 26px rgba(0,0,0,.12);
 }
 
 .btn:hover,.smallbtn:hover{ transform: translateY(-1px); }
 .btn:active,.smallbtn:active{ transform: translateY(0); box-shadow: 0 8px 18px rgba(0,0,0,.10); }
 
-.btn.ghost{
-  border-color: rgba(0,0,0,.12);
-  background: rgba(255,255,255,.70);
-}
-
-.btn.danger{
-  border-color: rgba(180,0,0,.25);
-  background: rgba(255,230,230,.80);
-}
+.btn.ghost{ background: rgba(255,255,255,.70); }
+.btn.danger{ border-color: rgba(180,0,0,.25); background: rgba(255,230,230,.80); }
 
 .btn input[type="file"],
 .smallbtn input[type="file"]{ display:none; }
 
-/* ===== Tabs ===== */
+/* ===== Tabs (캡슐 → 텍스트 + 밑줄 강조 스타일) ===== */
 .tabs{
   position: sticky;
   top: var(--topbarH);
   z-index: 180;
   display:flex;
-  gap:8px;
-  padding: 10px 16px 10px;
+  gap:14px;                 /* ✅ 버튼처럼 보이지 않게 간격 */
+  padding: 10px 16px 8px;
   flex-wrap:wrap;
 
-  background: rgba(255,255,255,.80);
+  background: rgba(255,255,255,.86);
   backdrop-filter: blur(10px);
-
   border-bottom: 1px solid var(--softLine);
   flex:0 0 auto;
 }
 
+/* ✅ 탭을 “필(캡슐)” 느낌 제거 */
 .tab{
-  border:1px solid rgba(0,0,0,.10);
-  background: rgba(255,255,255,.75);
-  border-radius: 999px;
-  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  padding: 8px 2px;
   cursor:pointer;
   font-weight: 900;
-  color: var(--muted);
+  color: #2b2b2f;
   display:inline-flex;
   align-items:center;
   gap:8px;
+  position: relative;
+  opacity: .90;
 }
 
+.tab:hover{ opacity: 1; }
+
 .tab.active{
-  background: rgba(240,138,36,.14);
-  border-color: rgba(240,138,36,.38);
-  color: #c45b00;
+  color: var(--accent);
+  opacity: 1;
+}
+
+/* ✅ 활성 탭 밑줄(이미지 느낌) */
+.tab.active::after{
+  content:"";
+  position:absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -8px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 10px 18px rgba(240,138,36,.20);
 }
 
 /* ===== Content ===== */
@@ -173,12 +202,8 @@ body{
   overflow:hidden;
 }
 
-#view{
-  height:100%;
-  min-height:0;
-}
+#view{ height:100%; min-height:0; }
 
-/* ✅ app.js가 div(view-fill)를 넣는 경우 대비 */
 .view-fill{
   height:100%;
   min-height:0;
@@ -189,7 +214,7 @@ body{
 
 /* ===== Panel ===== */
 .panel{
-  background: rgba(255,255,255,.92);
+  background: rgba(255,255,255,.94);
   border:1px solid var(--softLine);
   border-radius: var(--radius);
   box-shadow: var(--shadow2);
@@ -198,10 +223,9 @@ body{
   display:flex;
   flex-direction:column;
   min-height:0;
-  overflow:hidden;   /* ✅ 패널 스크롤 금지 */
+  overflow:hidden;
 }
 
-/* ✅ 패널 헤더 */
 .panel-header{
   display:flex;
   align-items:flex-start;
@@ -222,7 +246,6 @@ body{
   border-radius: 0;
 }
 
-/* 제목 왼쪽 오렌지 라인 느낌 */
 .panel-title{
   font-weight: 900;
   font-size: 16px;
@@ -253,13 +276,13 @@ body{
 }
 
 /* ===========================
-   ✅ Tables / Scroll container
+   Tables / Scroll container
    =========================== */
 .table-wrap{
   border:1px solid var(--softLine);
   border-radius: 16px;
-  overflow:auto;           /* ✅ 내부 스크롤(세로/가로) */
-  background: rgba(255,255,255,.80);
+  overflow:auto;
+  background: rgba(255,255,255,.84);
   flex:1 1 auto;
   min-height:0;
 
@@ -267,7 +290,6 @@ body{
   -webkit-overflow-scrolling: touch;
 }
 
-/* ✅ 중요: width:max-content 제거 → colgroup% + table-layout:fixed 정상 동작 */
 table{
   width: 100%;
   min-width: 100%;
@@ -276,13 +298,12 @@ table{
   font-size: 12px;
 }
 
-/* ✅ 산출/코드 표는 화면이 좁으면 가로스크롤이 자연스럽게 생기도록 최소폭 부여 */
 .calc-table{ min-width: 1180px; }
 .code-table{ min-width: 1180px; }
 
 thead th{
   position: sticky;
-  top: 0;                  /* ✅ table-wrap 스크롤 기준 */
+  top: 0;
   z-index: 5;
 
   background: rgba(250,250,250,.98);
@@ -308,7 +329,7 @@ tbody td{
   display: block;
 
   border: 2px solid rgba(240,138,36,.45);
-  background: rgba(255,255,255,.95);
+  background: rgba(255,255,255,.96);
   border-radius: 12px;
   padding: 7px 10px;
   font-size: 12px;
@@ -325,25 +346,23 @@ tbody td{
 }
 
 .cell:focus{
-  border-color: rgba(240,138,36,.90);
+  border-color: rgba(240,138,36,.92);
   box-shadow: 0 0 0 4px rgba(240,138,36,.18);
 }
 
-/* ✅ F2 편집모드 표시 */
 .cell[data-editing="1"]{
   border-color: rgba(240,138,36,.95) !important;
   box-shadow: 0 0 0 5px rgba(240,138,36,.22) !important;
   background: rgba(255,255,255,1) !important;
 }
 
-/* readonly */
 .cell.readonly{
   background: rgba(245,245,245,.85);
   color: rgba(0,0,0,.60);
   border-color: rgba(0,0,0,.10);
 }
 
-/* 삭제 버튼 같은 작은 버튼이 더 오렌지 느낌 나게 */
+/* smallbtn: 오렌지 솔리드(이미지 느낌) */
 .smallbtn{
   background: linear-gradient(180deg, rgba(240,138,36,.92), rgba(220,110,20,.92));
   border-color: rgba(240,138,36,.55);
@@ -352,7 +371,6 @@ tbody td{
 .smallbtn:hover{ filter: brightness(1.02); }
 .smallbtn:active{ filter: brightness(.98); }
 
-/* footer */
 .footer{
   padding: 10px 16px 16px;
   color: var(--muted);
@@ -361,7 +379,7 @@ tbody td{
 }
 
 /* ===========================
-   ✅ 상단(구분/변수)
+   상단(구분/변수)
    =========================== */
 .top-split{
   flex:0 0 auto;
@@ -377,7 +395,7 @@ tbody td{
 }
 
 .rail-box{
-  background: rgba(255,255,255,.92);
+  background: rgba(255,255,255,.94);
   border:1px solid var(--softLine);
   border-radius:16px;
   box-shadow: var(--shadow);
@@ -427,7 +445,7 @@ tbody td{
   justify-content:space-between;
   gap:8px;
   border:1px solid rgba(0,0,0,.10);
-  background: rgba(255,255,255,.95);
+  background: rgba(255,255,255,.96);
   border-radius:12px;
   padding:8px 10px;
   cursor:pointer;
@@ -488,7 +506,7 @@ tbody td{
   border:1px solid var(--softLine);
   border-radius:14px;
   overflow:auto;
-  background: rgba(255,255,255,.85);
+  background: rgba(255,255,255,.86);
   min-height:0;
 
   overscroll-behavior: contain;
@@ -519,7 +537,7 @@ tbody td{
   padding:6px 8px;
 }
 
-/* ===== Scrollbar (optional, subtle) ===== */
+/* ===== Scrollbar ===== */
 .table-wrap::-webkit-scrollbar,
 .section-list::-webkit-scrollbar,
 .var-tablewrap::-webkit-scrollbar{
