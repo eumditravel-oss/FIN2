@@ -2838,6 +2838,114 @@ function bindGlobalHotkeysOnce() {
   });
 }
 
+/* =========================================================
+   ✅ Shift + Click 셀 블록지정 (input.cell)
+   - data-grid / data-tab / data-row / data-col 기준 사각형 선택
+   - 선택된 input.cell에 .block-selected 클래스 부여
+   - code(grid="code")는 data-tab이 없으므로 grid만으로 그룹핑
+   ========================================================= */
+const __finBlockSel = {
+  anchor: null, // { grid, tab, row, col }
+};
+
+function __getCellKey(input) {
+  const ds = input?.dataset || {};
+  const grid = ds.grid || "";
+  const tab = ds.tab || "";     // code는 없음
+  const row = Number(ds.row || 0);
+  const col = Number(ds.col || 0);
+  return { grid, tab, row, col };
+}
+
+function __sameContext(a, b) {
+  if (!a || !b) return false;
+  // code grid는 tab이 없으니 grid만 같으면 OK
+  if (a.grid === "code" && b.grid === "code") return true;
+  return a.grid === b.grid && a.tab === b.tab;
+}
+
+function __queryCellByKey(key) {
+  if (!key?.grid) return null;
+  if (key.grid === "code") {
+    return document.querySelector(
+      `input.cell[data-grid="code"][data-row="${key.row}"][data-col="${key.col}"]`
+    );
+  }
+  return document.querySelector(
+    `input.cell[data-grid="${key.grid}"][data-tab="${key.tab}"][data-row="${key.row}"][data-col="${key.col}"]`
+  );
+}
+
+function __queryAllCellsInContext(key) {
+  if (!key?.grid) return [];
+  if (key.grid === "code") {
+    return Array.from(document.querySelectorAll(`input.cell[data-grid="code"]`));
+  }
+  return Array.from(document.querySelectorAll(
+    `input.cell[data-grid="${key.grid}"][data-tab="${key.tab}"]`
+  ));
+}
+
+function __clearCellBlockSelection() {
+  document.querySelectorAll("input.cell.block-selected").forEach((x) => {
+    x.classList.remove("block-selected");
+  });
+}
+
+function __setAnchor(input) {
+  const k = __getCellKey(input);
+  if (!k.grid) return;
+  __finBlockSel.anchor = k;
+}
+
+function __applyRectSelection(fromKey, toKey) {
+  if (!fromKey?.grid || !toKey?.grid) return;
+  if (!__sameContext(fromKey, toKey)) return;
+
+  const r1 = Math.min(fromKey.row, toKey.row);
+  const r2 = Math.max(fromKey.row, toKey.row);
+  const c1 = Math.min(fromKey.col, toKey.col);
+  const c2 = Math.max(fromKey.col, toKey.col);
+
+  // 성능/정확성을 위해: 해당 컨텍스트의 셀만 대상으로 필터
+  const cells = __queryAllCellsInContext(fromKey);
+
+  for (const inp of cells) {
+    const k = __getCellKey(inp);
+    if (k.row >= r1 && k.row <= r2 && k.col >= c1 && k.col <= c2) {
+      inp.classList.add("block-selected");
+    }
+  }
+}
+
+/** 일반 클릭: 블록 해제 + 앵커 갱신 */
+function __handleNormalClickCell(input) {
+  if (!(input instanceof HTMLInputElement)) return;
+  // 기존 블록 제거
+  __clearCellBlockSelection();
+  // 앵커 저장
+  __setAnchor(input);
+}
+
+/** Shift+클릭: 앵커~현재 셀까지 사각형 블록 */
+function __handleShiftClickCell(input) {
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const cur = __getCellKey(input);
+  if (!cur.grid) return;
+
+  // 앵커가 없거나 컨텍스트 다르면 -> 현재를 앵커로 설정 후 1셀만 선택
+  if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, cur)) {
+    __clearCellBlockSelection();
+    __setAnchor(input);
+    input.classList.add("block-selected");
+    return;
+  }
+
+  // 같은 컨텍스트면 사각형 선택
+  __clearCellBlockSelection();
+  __applyRectSelection(__finBlockSel.anchor, cur);
+}
 
 
 // DOMContentLoaded 보장
