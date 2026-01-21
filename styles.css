@@ -1209,3 +1209,9 @@ table.calc-table tr.row-selected .cell.block-selected{
   .modal-head-actions{ justify-content:flex-end; }
   .project-table-wrap{ max-height: 70vh; }
 }
+
+
+input.cell.block-selected{
+  outline: 2px solid rgba(30,90,200,.65);
+  background: rgba(30,90,200,.10);
+}
