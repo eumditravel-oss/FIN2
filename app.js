@@ -1,4 +1,4 @@
-/* app.js (FINAL FIX v13.0) - FIN 산출자료 (Web)
+/* app.js (FINAL FIX v13.2b+) - FIN 산출자료 (Web)
    - ✅ (v13.0) 내보내기/가져오기: JSON → Excel(.xlsx) 기반으로 변경
    - ✅ (v13.0) 내보내기 클릭 시 탭 선택 팝업(모달) 제공 (코드/철골/철골_부자재/구조이기-동바리)
    - ✅ (v13.0) 가져오기(Excel): Codes 시트 기반으로 codeMaster 갱신 (임시 양식)
@@ -8,15 +8,31 @@
    - ✅ (v12.3) 집계 탭: 환산단위/환산계수 있으면 환산후수량 기준으로 단위/할증전/후 집계
    - ✅ (v12.3) 산출표 헤더 "물량(Value)" -> "물량"
    - ✅ (v12.3) 산출표 컬럼폭: 단위/물량(및 코드) 가로폭 증가 (CALC_COL_WEIGHTS 조정)
+   - ✅ (v13.1) 도움말 버튼 추가: 화면 안내문구 제거 + help.html로 이동
+   - ✅ (v13.2) 구분명 리스트: 클릭 후에도 ↑/↓ 키로 이동 가능(렌더 후 포커스 복원)
+   - ✅ (v13.2a) 내보내기 모달 '전체선택' 버튼이 실제 체크박스에 반영되도록 수정(모달 재오픈 제거)
+   - ✅ (v13.2b) top-split(구분/변수) ↔ panel 사이 리사이저(split-resizer) 적용 + 높이 상태 저장(ui.topSplitH)
+   - ✅ (v13.2b) section-editor(구분 편집) CSS(3컬럼)와 맞게 버튼들을 한 칸으로 묶음
+
+   - 🛠 (Patch) LS_KEY 버전 분리 + 구버전(V11) 데이터 자동 마이그레이션 + 초기화 시 구키도 함께 삭제
+   - 🛠 (Patch) 프로젝트 모달 show/hide: hidden + aria-hidden 동시 지원(접근성/표준)
+   - 🛠 (Patch) Init/Render 중복 호출 제거, bindTopButtons 1회만 바인딩
 */
 
 (() => {
   "use strict";
 
   /***************
-   * Storage
+   * Storage (✅ Project-ready)
    ***************/
-  const LS_KEY = "FIN_WEB_STATE_V11";
+  const PROJECT_INDEX_KEY = "FIN_PROJECT_INDEX_V1";
+  const PROJECT_ACTIVE_KEY = "FIN_PROJECT_ACTIVE_V1";
+  const PROJECT_STATE_PREFIX = "FIN_PROJECT_STATE_V1::";
+
+  // (기존 단일 저장키 마이그레이션용)
+  const LS_KEY_OLD_SINGLE_V13 = "FIN_WEB_STATE_V13_2A";
+  const LS_KEY_OLD_SINGLE_V11 = "FIN_WEB_STATE_V11";
+
   const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
@@ -66,33 +82,59 @@
       updateStickyVars();
       applyPanelStickyTop();
       updateScrollHeights();
+      updateViewFillHeight();
     });
   });
 
   /***************
-   * ✅ 내부 스크롤 높이 자동 보정
+   * ✅ 내부 스크롤 높이 자동 보정 (PATCH: 하단 공백 제거)
    ***************/
   function updateScrollHeights() {
-    const scrolls = document.querySelectorAll(".calc-scroll");
-    if (!scrolls.length) return;
+  const scrolls = document.querySelectorAll(".calc-scroll");
+  if (!scrolls.length) return;
 
-    scrolls.forEach((sc) => {
-      if (!(sc instanceof HTMLElement)) return;
+  scrolls.forEach((sc) => {
+    if (!(sc instanceof HTMLElement)) return;
 
-      sc.style.overflow = "auto";
-      sc.style.webkitOverflowScrolling = "touch";
-      sc.tabIndex = -1;
+    // ✅ 최근에 스크롤 중이면(사용자 조작 중) 강제 height 갱신을 건너뛰어
+    // 클릭 hit-test / 포커스 튐을 줄임
+    const now = Date.now();
+    const last = Number(sc.__lastScrollAt || 0);
+    if (now - last < 120) return;
 
-      const rect = sc.getBoundingClientRect();
-      const viewportH = window.innerHeight || document.documentElement.clientHeight || 800;
+    sc.style.overflow = "auto";
+    sc.style.webkitOverflowScrolling = "touch";
+    sc.tabIndex = -1;
 
-      const bottomPad = 18;
-      let maxH = Math.floor(viewportH - rect.top - bottomPad);
-      maxH = clamp(maxH, 180, 20000);
+    // ✅ 중요: flex 컨테이너 안에서 스크롤 영역이 제대로 줄어들도록
+    sc.style.minHeight = "0";
 
-      sc.style.maxHeight = `${maxH}px`;
-    });
-  }
+    const scRect = sc.getBoundingClientRect();
+    const viewportH = window.innerHeight || document.documentElement.clientHeight || 800;
+
+    const bottomPad = 12;
+
+    const panel = sc.closest(".panel");
+    let h = 0;
+
+    if (panel instanceof HTMLElement) {
+      const panelRect = panel.getBoundingClientRect();
+
+      // ✅ 패널이 화면 밖으로 내려가도, 계산 기준은 "뷰포트 바닥"까지만
+      const bottom = Math.min(panelRect.bottom, viewportH);
+
+      h = Math.floor(bottom - scRect.top - bottomPad);
+    } else {
+      h = Math.floor(viewportH - scRect.top - bottomPad);
+    }
+
+    h = clamp(h, 160, 20000);
+
+    sc.style.maxHeight = "";
+    sc.style.height = `${h}px`;
+  });
+}
+
 
   /***************
    * Code Master
@@ -173,13 +215,82 @@
     steel: { activeSection: 0, sections: [defaultSection("구분 1", 1)] },
     steel_sub: { activeSection: 0, sections: [defaultSection("구분 1", 1)] },
     support: { activeSection: 0, sections: [defaultSection("구분 1", 1)] },
+
+    ui: {
+      topSplitH: 190,
+    }
   };
 
-  function loadState() {
+  /***************
+   * ✅ Project Store Adapter
+   ***************/
+  const ProjectStore = (() => {
+    const local = {
+      loadIndex() {
+        try {
+          const raw = localStorage.getItem(PROJECT_INDEX_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (!parsed || !Array.isArray(parsed.projects)) return { projects: [] };
+          return parsed;
+        } catch { return { projects: [] }; }
+      },
+      saveIndex(index) {
+        localStorage.setItem(PROJECT_INDEX_KEY, JSON.stringify(index));
+      },
+      loadActiveId() {
+        return localStorage.getItem(PROJECT_ACTIVE_KEY) || "";
+      },
+      saveActiveId(id) {
+        if (!id) localStorage.removeItem(PROJECT_ACTIVE_KEY);
+        else localStorage.setItem(PROJECT_ACTIVE_KEY, id);
+      },
+      loadProjectState(id) {
+        try {
+          const k = PROJECT_STATE_PREFIX + id;
+          const raw = localStorage.getItem(k);
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      },
+      saveProjectState(id, projectState) {
+        const k = PROJECT_STATE_PREFIX + id;
+        localStorage.setItem(k, JSON.stringify(projectState));
+      },
+      deleteProject(id) {
+        localStorage.removeItem(PROJECT_STATE_PREFIX + id);
+      }
+    };
+    return local;
+  })();
+
+  function genId() {
+    return "p_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeProjectMeta(p) {
+    return {
+      id: String(p?.id || genId()),
+      name: String(p?.name || "새 프로젝트"),
+      code: String(p?.code || ""),
+      updatedAt: Number(p?.updatedAt || Date.now()),
+      createdAt: Number(p?.createdAt || Date.now()),
+    };
+  }
+
+  function loadProjectIndex() {
+    const idx = ProjectStore.loadIndex();
+    return { projects: Array.isArray(idx.projects) ? idx.projects.map(normalizeProjectMeta) : [] };
+  }
+
+  function saveProjectIndex(index) {
+    ProjectStore.saveIndex(index);
+  }
+
+  function loadProjectState(projectId) {
     try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (!raw) return deepClone(DEFAULT_STATE);
-      const parsed = JSON.parse(raw);
+      const parsed = ProjectStore.loadProjectState(projectId);
+      if (!parsed) return deepClone(DEFAULT_STATE);
 
       const s = { ...deepClone(DEFAULT_STATE), ...parsed };
       s.codeMaster = Array.isArray(parsed?.codeMaster) ? parsed.codeMaster : deepClone(DEFAULT_CODE_MASTER);
@@ -191,19 +302,178 @@
         s[k].activeSection = clamp(Number(s[k].activeSection || 0), 0, s[k].sections.length - 1);
       }
 
+      if (!s.ui || typeof s.ui !== "object") s.ui = deepClone(DEFAULT_STATE.ui);
+      s.ui.topSplitH = clamp(Number(s.ui.topSplitH ?? 190), 120, 520);
+
       if (!TABS.some(t => t.id === s.activeTab)) s.activeTab = "code";
       return s;
     } catch (e) {
-      console.warn("loadState failed:", e);
+      console.warn("loadProjectState failed:", e);
       return deepClone(DEFAULT_STATE);
     }
   }
 
-  function saveState() {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  function saveProjectState(projectId) {
+    if (!projectId) return;
+    ProjectStore.saveProjectState(projectId, deepClone(state));
   }
 
-  let state = loadState();
+  // ✅ activeProjectId가 준비되기 전 호출 방지 포함
+  function saveState() {
+    if (!activeProjectId) return;
+    saveProjectState(activeProjectId);
+  }
+
+  let projectIndex = loadProjectIndex();
+  let activeProjectId = ProjectStore.loadActiveId();
+
+  /***************
+   * ✅ Legacy migration(단일키 -> 프로젝트 1회 이관)
+   ***************/
+  (function migrateLegacySingleToProjectOnce() {
+    const legacy = localStorage.getItem(LS_KEY_OLD_SINGLE_V13) || localStorage.getItem(LS_KEY_OLD_SINGLE_V11);
+    if (!legacy) return;
+    if (projectIndex.projects.length > 0) return;
+
+    try {
+      const parsed = JSON.parse(legacy);
+      const pid = genId();
+      const meta = normalizeProjectMeta({ id: pid, name: "마이그레이션 프로젝트", code: "LEGACY" });
+      projectIndex.projects.push(meta);
+      saveProjectIndex(projectIndex);
+      ProjectStore.saveActiveId(pid);
+      activeProjectId = pid;
+
+      ProjectStore.saveProjectState(pid, { ...deepClone(DEFAULT_STATE), ...parsed });
+    } catch {}
+  })();
+
+  (function cleanupLegacyKeys() {
+    if (projectIndex.projects.length <= 0) return;
+    try { localStorage.removeItem(LS_KEY_OLD_SINGLE_V13); } catch {}
+    try { localStorage.removeItem(LS_KEY_OLD_SINGLE_V11); } catch {}
+  })();
+
+  (function ensureAtLeastOneProject() {
+    if (projectIndex.projects.length > 0) {
+      if (!activeProjectId || !projectIndex.projects.some(p => p.id === activeProjectId)) {
+        activeProjectId = projectIndex.projects[0].id;
+        ProjectStore.saveActiveId(activeProjectId);
+      }
+      return;
+    }
+
+    const pid = genId();
+    const meta = normalizeProjectMeta({ id: pid, name: "프로젝트 1", code: "" });
+    projectIndex.projects.push(meta);
+    saveProjectIndex(projectIndex);
+
+    activeProjectId = pid;
+    ProjectStore.saveActiveId(activeProjectId);
+    ProjectStore.saveProjectState(pid, deepClone(DEFAULT_STATE));
+  })();
+
+  let state = activeProjectId ? loadProjectState(activeProjectId) : deepClone(DEFAULT_STATE);
+
+  // ✅ (v13.2) 구분명 리스트 클릭/↑↓ 후 렌더링되면 포커스 복원
+  let __pendingSectionFocus = null;
+
+  /***************
+   * ✅ Calc(산출표) 멀티선택 상태 (비저장/런타임)
+   ***************/
+  const __calcMulti = {
+    active: false,
+    tabId: null,
+    sectionIndex: null,
+    anchorRow: null,
+    rows: new Set(),
+  };
+
+  function __calcMultiClear() {
+    __calcMulti.active = false;
+    __calcMulti.tabId = null;
+    __calcMulti.sectionIndex = null;
+    __calcMulti.anchorRow = null;
+    __calcMulti.rows.clear();
+  }
+
+  function __calcMultiIsSameContext(tabId) {
+    const bucket = state?.[tabId];
+    const secIdx = bucket?.activeSection ?? 0;
+    return __calcMulti.active && __calcMulti.tabId === tabId && __calcMulti.sectionIndex === secIdx;
+  }
+
+  function __calcMultiBegin(tabId, anchorRow) {
+    const bucket = state?.[tabId];
+    const secIdx = bucket?.activeSection ?? 0;
+
+    __calcMulti.active = true;
+    __calcMulti.tabId = tabId;
+    __calcMulti.sectionIndex = secIdx;
+    __calcMulti.anchorRow = clamp(
+      Number(anchorRow || 0),
+      0,
+      (bucket?.sections?.[secIdx]?.rows?.length ?? 1) - 1
+    );
+
+    __calcMulti.rows.clear();
+    __calcMulti.rows.add(__calcMulti.anchorRow);
+  }
+
+  function __calcMultiSetRange(tabId, fromRow, toRow) {
+    if (!__calcMultiIsSameContext(tabId)) {
+      __calcMultiBegin(tabId, fromRow);
+    }
+    const a = __calcMulti.anchorRow ?? fromRow;
+    const lo = Math.min(a, toRow);
+    const hi = Math.max(a, toRow);
+
+    __calcMulti.rows.clear();
+    for (let r = lo; r <= hi; r++) __calcMulti.rows.add(r);
+  }
+
+  function __applyCalcRowSelectionStyles(tabId) {
+    const table = document
+      .querySelector(`table.calc-table input[data-grid="calc"][data-tab="${tabId}"]`)
+      ?.closest("table.calc-table");
+    if (!table) return;
+
+    const should = __calcMultiIsSameContext(tabId);
+    const trs = table.querySelectorAll("tbody tr");
+    trs.forEach((tr, i) => {
+      if (should && __calcMulti.rows.has(i)) tr.classList.add("row-selected");
+      else tr.classList.remove("row-selected");
+    });
+  }
+
+  function __getSelectedCalcRows(tabId) {
+    if (!__calcMultiIsSameContext(tabId)) return [];
+    return [...__calcMulti.rows].sort((a, b) => a - b);
+  }
+
+
+   // ✅ [추가] Ctrl+B에서 "현재 행 선택 토글"을 만들기 위한 함수
+function __calcMultiToggleRow(tabId, row) {
+  const bucket = state?.[tabId];
+  const secIdx = bucket?.activeSection ?? 0;
+  const maxRow = (bucket?.sections?.[secIdx]?.rows?.length ?? 1) - 1;
+  const r = clamp(Number(row || 0), 0, Math.max(0, maxRow));
+
+  // 컨텍스트 다르면 시작(=첫 선택은 anchor로)
+  if (!__calcMultiIsSameContext(tabId)) {
+    __calcMultiBegin(tabId, r);
+    return;
+  }
+
+  // 같은 컨텍스트면 현재 row 토글
+  if (__calcMulti.rows.has(r)) __calcMulti.rows.delete(r);
+  else __calcMulti.rows.add(r);
+
+  // 전부 해제됐으면 모드도 종료
+  if (__calcMulti.rows.size === 0) __calcMultiClear();
+}
+
+   
 
   /***************
    * DOM
@@ -232,6 +502,48 @@
   }
 
   /***************
+   * ✅ (v13.2b) topSplit height 적용
+   ***************/
+  function applyTopSplitH() {
+    const root = document.documentElement;
+    const h = clamp(Number(state?.ui?.topSplitH ?? 190), 120, 520);
+    root.style.setProperty("--topSplitH", `${Math.round(h)}px`);
+  }
+
+  /***************
+   * ✅ zoom(--uiScale) 대응: view 높이 보정
+   ***************/
+  function getUiScale() {
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--uiScale").trim();
+    const n = Number(v);
+    return (Number.isFinite(n) && n > 0.2 && n < 2.5) ? n : 1;
+  }
+
+  function updateViewFillHeight() {
+  const view = document.getElementById("view");
+  if (!view) return;
+
+  const scale = getUiScale();
+  const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+
+  const topbar = document.querySelector(".topbar");
+  const tabs = document.querySelector(".tabs");
+
+  const topbarH = topbar ? topbar.getBoundingClientRect().height : 0;
+  const tabsH = tabs ? tabs.getBoundingClientRect().height : 0;
+
+  // ✅ view는 "상단(topbar+tabs) 제외한 나머지"만 차지해야 함
+  const available = Math.max(200, vh - Math.ceil(topbarH + tabsH));
+
+  // ✅ uiScale이 transform 기반이면 실제 px로 맞추기 위해 scale로 보정
+  const target = Math.ceil(available / scale);
+
+  view.style.height = `${target}px`;
+  view.style.minHeight = `${target}px`;
+}
+
+
+  /***************
    * Helpers: Code master lookup
    ***************/
   function codeLookup(code) {
@@ -246,6 +558,30 @@
   function stripAngleComments(expr) {
     if (!expr) return "";
     return String(expr).replace(/<[^>]*>/g, "");
+  }
+
+  function safeEvalWithVars(expr, varMap) {
+    const raw = String(expr || "").trim();
+    if (!raw) return 0;
+
+    const replaced = raw.replace(/\b([A-Za-z][A-Za-z0-9]{0,2})\b/g, (m, p1) => {
+      const k = p1.toUpperCase();
+      if (Object.prototype.hasOwnProperty.call(varMap, k)) return String(varMap[k] ?? 0);
+      return "0";
+    });
+
+    const cleaned = replaced.replace(/\s+/g, "");
+    if (!/^[0-9+\-*/().]*$/.test(cleaned)) return NaN;
+
+    try {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function(`return (${replaced});`);
+      const v = fn();
+      const n = Number(v);
+      return Number.isFinite(n) ? n : NaN;
+    } catch {
+      return NaN;
+    }
   }
 
   function buildVarMap(section) {
@@ -274,30 +610,6 @@
       else v.value = Number(map[key.toUpperCase()] ?? 0) || 0;
     }
     return map;
-  }
-
-  function safeEvalWithVars(expr, varMap) {
-    const raw = String(expr || "").trim();
-    if (!raw) return 0;
-
-    const replaced = raw.replace(/\b([A-Za-z][A-Za-z0-9]{0,2})\b/g, (m, p1) => {
-      const k = p1.toUpperCase();
-      if (Object.prototype.hasOwnProperty.call(varMap, k)) return String(varMap[k] ?? 0);
-      return "0";
-    });
-
-    const cleaned = replaced.replace(/\s+/g, "");
-    if (!/^[0-9+\-*/().]*$/.test(cleaned)) return NaN;
-
-    try {
-      // eslint-disable-next-line no-new-func
-      const fn = new Function(`return (${replaced});`);
-      const v = fn();
-      const n = Number(v);
-      return Number.isFinite(n) ? n : NaN;
-    } catch {
-      return NaN;
-    }
   }
 
   function recomputeSection(tabId) {
@@ -353,7 +665,6 @@
     return cg;
   }
 
-  // ✅ (v12.4) 산출표 "비고" 컬럼 제거 → weights도 1개 줄임
   const CALC_COL_WEIGHTS = [
     0.35,  // No
     0.75,  // 코드
@@ -369,6 +680,80 @@
   ];
 
   const CODE_COL_WEIGHTS = [0.6, 2.2, 2.2, 0.6, 0.6, 0.7, 0.7, 1.2, 0.6];
+
+// ✅ [추가] codeMaster(코드표) 필드 → 실제 열 번호 매핑 (0~8)
+// 0:code, 1:name, 2:spec, 3:unit, 4:surcharge, 5:convUnit, 6:convFactor, 7:note, 8:action(삭제버튼)
+const CODE_COL_INDEX = {
+  code: 0,
+  name: 1,
+  spec: 2,
+  unit: 3,
+  surcharge: 4,
+  convUnit: 5,
+  convFactor: 6,
+  note: 7,
+  action: 8,
+};
+
+  /***************
+   * ✅ Help
+   ***************/
+  function buildHelpPayload() {
+    return {
+      title: "FIN 산출자료 도움말",
+      sections: [
+        { title: "코드 선택(팝업)", items: [
+          "Ctrl+. : 코드 선택 창 열기",
+          "코드 선택 창에서 Ctrl+B : 다중선택",
+          "코드 선택 창에서 Ctrl+Enter : 삽입",
+        ]},
+
+        { title: "표 이동/편집(공통)", items: [
+          "방향키: 셀 이동",
+          "F2: 편집 모드(읽기전용 셀 제외)",
+          "편집 모드에서 Enter: 편집 종료",
+          "PageUp / PageDown: 한 페이지 단위로 위/아래 이동(현재 열 유지)",
+          "Ctrl+Home / Ctrl+End: 최상단/최하단으로 이동(현재 열 유지)"
+        ]},
+        { title: "행 추가/삭제", items: [
+          "Ctrl+F3: 현재 행 아래 행 추가",
+          "Shift+Ctrl+F3: +10행 추가",
+          "Ctrl+Del: 삭제(확인창) - 산출표/코드표는 현재 '행' 삭제, 변수표는 현재 '셀' 비움",
+          "ESC: (산출표 다중선택 중) 다중선택 취소"
+        ]},
+        { title: "산출 탭", items: [
+          "구분 리스트: ↑/↓ 로 이동 및 선택",
+          "구분/변수 영역 높이 조절: 중간 점선 바(리사이저)를 드래그"
+        ]},
+        { title: "산출표 다중선택", items: [
+          "Shift+B: 다중선택 모드 토글",
+          "Shift+↑ / Shift+↓: 다중선택 범위 확장",
+          "Ctrl+Del: (다중선택 중) 선택된 행들을 한 번에 삭제",
+          "Ctrl+G: (다중선택 중) 선택된 행들을 현재 행 아래로 복사/삽입"
+        ]},
+        { title: "엑셀 내보내기/가져오기", items: [
+          "내보내기(EXCEL): 선택 모달에서 탭 선택 후 .xlsx 다운로드",
+          "가져오기(EXCEL): 'Codes(또는 코드)' 시트 기반으로 codeMaster 갱신"
+        ]},
+      ]
+    };
+  }
+
+  function openHelpWindow() {
+    const w = window.open("help.html", "FIN_HELP", "width=980,height=820");
+    if (!w) {
+      alert("팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도해 주세요.");
+      return;
+    }
+
+    const payload = buildHelpPayload();
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries++;
+      try { w.postMessage({ type: "HELP_INIT", payload }, window.location.origin); } catch {}
+      if (tries >= 20) clearInterval(timer);
+    }, 120);
+  }
 
   /***************
    * UI: Tabs
@@ -393,12 +778,7 @@
    ***************/
   function renderCodeTab() {
     const panelHeader = el("div", { class: "panel-header sticky-head", dataset: { sticky: "panel" } }, [
-      el("div", {}, [
-        el("div", { class: "panel-title" }, ["코드"]),
-        el("div", { class: "panel-desc" }, [
-          "방향키: 코드표 셀 이동 | Ctrl+F3 행추가 | Shift+Ctrl+F3 +10행 | Ctrl+Del 행삭제(확인)"
-        ])
-      ]),
+      el("div", {}, [ el("div", { class: "panel-title" }, ["코드"]) ]),
       el("div", { class: "row-actions" }, [
         el("button", { class: "smallbtn", onclick: () => addCodeRows(1) }, ["행 추가 (Ctrl+F3)"]),
         el("button", { class: "smallbtn", onclick: () => addCodeRows(10) }, ["+10행"]),
@@ -462,10 +842,25 @@
 
     table.appendChild(thead);
     table.appendChild(tbody);
+
     return table;
   }
 
-  const CODE_COL_INDEX = { code: 0, name: 1, spec: 2, unit: 3, surcharge: 4, convUnit: 5, convFactor: 6, note: 7 };
+    // ✅ Calc table 실제 열 번호 (No 포함 0~10 기준)
+  // 0:No, 1:code, 2:name, 3:spec, 4:unit, 5:formula, 6:value, 7:surchargePct, 8:convUnit, 9:convFactor, 10:converted
+  const CALC_COL_INDEX = {
+    code: 1,
+    name: 2,
+    spec: 3,
+    unit: 4,
+    formula: 5,
+    value: 6,
+    surchargePct: 7,
+    convUnit: 8,
+    convFactor: 9,
+    converted: 10,
+  };
+
 
   function tdInput(scope, rowIndex, field, value, opts = {}) {
     const ds =
@@ -478,7 +873,6 @@
       value: value ?? "",
       readonly: opts.readonly ? "readonly" : null,
       dataset: ds,
-      onna: null,
       oninput: (e) => {
         const v = e.target.value;
         if (scope === "codeMaster") {
@@ -508,11 +902,78 @@
     render();
 
     raf2(() => {
+      updateViewFillHeight();
       updateScrollHeights();
       const first = document.querySelector(`input[data-grid="code"][data-row="${insertPos}"][data-col="0"]`);
       if (first) safeFocus(first);
       ensureScrollIntoView();
     });
+  }
+
+  /***************
+   * ✅ Split resizer
+   ***************/
+  function attachSplitResizer(resizerEl, topPaneEl) {
+    if (!resizerEl || !topPaneEl) return;
+
+    const root = document.documentElement;
+
+    const begin = (clientY) => {
+      const startH = topPaneEl.getBoundingClientRect().height;
+      const startY = clientY;
+
+      document.body.classList.add("is-resizing");
+
+      const move = (y) => {
+        const dy = y - startY;
+        const next = clamp(startH + dy, 120, 520);
+        state.ui.topSplitH = next;
+        root.style.setProperty("--topSplitH", `${Math.round(next)}px`);
+        saveState();
+        updateStickyVars();
+        applyPanelStickyTop();
+        updateViewFillHeight();
+        updateScrollHeights();
+      };
+
+      const onMove = (e) => {
+        if (e.touches && e.touches[0]) move(e.touches[0].clientY);
+        else move(e.clientY);
+      };
+
+      const end = () => {
+        document.body.classList.remove("is-resizing");
+        window.removeEventListener("mousemove", onMove, true);
+        window.removeEventListener("mouseup", end, true);
+        window.removeEventListener("touchmove", onMove, { capture: true });
+        window.removeEventListener("touchend", end, true);
+        window.removeEventListener("touchcancel", end, true);
+
+        raf2(() => {
+          updateStickyVars();
+          applyPanelStickyTop();
+          updateViewFillHeight();
+          updateScrollHeights();
+        });
+      };
+
+      window.addEventListener("mousemove", onMove, true);
+      window.addEventListener("mouseup", end, true);
+      window.addEventListener("touchmove", onMove, { capture: true, passive: false });
+      window.addEventListener("touchend", end, true);
+      window.addEventListener("touchcancel", end, true);
+    };
+
+    resizerEl.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      begin(e.clientY);
+    });
+
+    resizerEl.addEventListener("touchstart", (e) => {
+      if (!e.touches || !e.touches[0]) return;
+      e.preventDefault();
+      begin(e.touches[0].clientY);
+    }, { passive: false });
   }
 
   /***************
@@ -536,12 +997,7 @@
     ]);
 
     const panelHeader = el("div", { class: "panel-header sticky-head", dataset: { sticky: "panel" } }, [
-      el("div", {}, [
-        el("div", { class: "panel-title" }, [title]),
-        el("div", { class: "panel-desc" }, [
-          "방향키: 산출표 셀 이동 | 산출식 Enter 계산 | Ctrl+. 코드선택 | Ctrl+F3 행추가 | Shift+Ctrl+F3 +10행 | Ctrl+Del 행삭제(확인)"
-        ])
-      ]),
+      el("div", {}, [ el("div", { class: "panel-title" }, [title]) ]),
       el("div", { class: "row-actions" }, [
         el("button", { class: "smallbtn", onclick: () => addRows(tabId, 1) }, ["행 추가 (Ctrl+F3)"]),
         el("button", { class: "smallbtn", onclick: () => addRows(tabId, 10) }, ["+10행"]),
@@ -554,12 +1010,30 @@
     attachWheelLock(scroll);
 
     const panel = el("div", { class: "panel" }, [panelHeader, scroll]);
-    return el("div", {}, [top, panel]);
+
+    const topPane = el("div", { class: "pane top-pane" }, [top]);
+    const resizer = el("div", { class: "split-resizer", dataset: { ui: "splitResizer" } }, []);
+    const bottomPane = el("div", { class: "pane bottom-pane" }, [panel]);
+
+    const workArea = el("div", { class: "work-area" }, [topPane, resizer, bottomPane]);
+
+    raf2(() => {
+      attachSplitResizer(resizer, topPane);
+      updateViewFillHeight();
+      updateScrollHeights();
+    });
+
+    return workArea;
   }
 
   function buildSectionList(tabId) {
     const bucket = state[tabId];
-    const list = el("div", { class: "section-list", dataset: { nav: "sectionList" } }, []);
+
+    const list = el("div", {
+      class: "section-list",
+      tabindex: "0",
+      dataset: { nav: "sectionList", tab: tabId }
+    }, []);
 
     bucket.sections.forEach((s, idx) => {
       const item = el("div", {
@@ -568,6 +1042,7 @@
         onclick: () => {
           bucket.activeSection = idx;
           saveState();
+          __pendingSectionFocus = { tabId, index: idx };
           render();
         },
       }, [
@@ -578,21 +1053,25 @@
       list.appendChild(item);
     });
 
+    list.addEventListener("mousedown", () => safeFocus(list));
+
     list.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      const a = document.activeElement;
+      if (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement) return;
+
       e.preventDefault();
+      e.stopPropagation();
 
       const dir = e.key === "ArrowDown" ? 1 : -1;
-      bucket.activeSection = clamp(bucket.activeSection + dir, 0, bucket.sections.length - 1);
-      saveState();
-      render();
+      const nextIdx = clamp(bucket.activeSection + dir, 0, bucket.sections.length - 1);
+      if (nextIdx === bucket.activeSection) return;
 
-      raf2(() => {
-        const newList = document.querySelector(".section-list");
-        const items = newList ? [...newList.querySelectorAll(".section-item")] : [];
-        if (items[bucket.activeSection]) safeFocus(items[bucket.activeSection]);
-      });
-    });
+      bucket.activeSection = nextIdx;
+      saveState();
+      __pendingSectionFocus = { tabId, index: nextIdx };
+      render();
+    }, true);
 
     return list;
   }
@@ -626,26 +1105,28 @@
       }
     });
 
-    const saveBtn = el("button", { class: "smallbtn", onclick: () => { saveState(); render(); } }, ["저장"]);
-    const addBtn = el("button", {
-      class: "smallbtn",
-      onclick: () => {
-        bucket.sections.push(defaultSection(`구분 ${bucket.sections.length + 1}`, 1));
-        bucket.activeSection = bucket.sections.length - 1;
-        saveState(); render();
-      }
-    }, ["구분 추가"]);
-    const delBtn = el("button", {
-      class: "smallbtn",
-      onclick: () => {
-        if (bucket.sections.length <= 1) return alert("구분은 최소 1개가 필요합니다.");
-        bucket.sections.splice(bucket.activeSection, 1);
-        bucket.activeSection = clamp(bucket.activeSection, 0, bucket.sections.length - 1);
-        saveState(); render();
-      }
-    }, ["구분 삭제"]);
+    const btnWrap = el("div", { class: "row-actions", style: "justify-content:flex-end; gap:6px;" }, [
+      el("button", { class: "smallbtn", onclick: () => { saveState(); render(); } }, ["저장"]),
+      el("button", {
+        class: "smallbtn",
+        onclick: () => {
+          bucket.sections.push(defaultSection(`구분 ${bucket.sections.length + 1}`, 1));
+          bucket.activeSection = bucket.sections.length - 1;
+          saveState(); render();
+        }
+      }, ["구분 추가"]),
+      el("button", {
+        class: "smallbtn",
+        onclick: () => {
+          if (bucket.sections.length <= 1) return alert("구분은 최소 1개가 필요합니다.");
+          bucket.sections.splice(bucket.activeSection, 1);
+          bucket.activeSection = clamp(bucket.activeSection, 0, bucket.sections.length - 1);
+          saveState(); render();
+        }
+      }, ["구분 삭제"]),
+    ]);
 
-    return el("div", { class: "section-editor" }, [nameInput, countInput, saveBtn, addBtn, delBtn]);
+    return el("div", { class: "section-editor" }, [nameInput, countInput, btnWrap]);
   }
 
   function buildVarTable(tabId) {
@@ -689,9 +1170,18 @@
         if (valueInputs[i]) valueInputs[i].value = String(vv.value ?? 0);
       });
       refreshCalcComputed(tabId);
+
+      updateViewFillHeight();
+      updateScrollHeights();
     });
 
     attachGridNav(wrap);
+
+    raf2(() => {
+      updateViewFillHeight();
+      updateScrollHeights();
+    });
+
     return wrap;
   }
 
@@ -724,11 +1214,9 @@
     });
 
     input.addEventListener("blur", () => { delete input.dataset.editing; });
-
     return el("td", {}, [input]);
   }
 
-  // ✅ (v12.4) 산출표: "비고" 컬럼 제거
   function buildCalcTable(tabId) {
     const bucket = state[tabId];
     const sec = bucket.sections[bucket.activeSection];
@@ -766,7 +1254,7 @@
         tdNavInputCalc(tabId, i, 3, "unit", r.unit, { readonly: true }),
         tdNavInputCalc(tabId, i, 4, "formula", r.formula, { placeholder: "예: (A+0.5)*2  (<...> 주석)" }),
         tdNavInputCalc(tabId, i, 5, "value", String(r.value ?? 0), { readonly: true }),
-        tdNavInputCalc(tabId, i, 6, "surchargePct", r.surchargePct ?? "", { placeholder: "자동/직접입력" }),
+        tdNavInputCalc(tabId, i, 6, "surchargePct", r.surchargePct ?? "", { readonly: true }),
         tdNavInputCalc(tabId, i, 7, "convUnit", r.convUnit || "", { readonly: true }),
         tdNavInputCalc(tabId, i, 8, "convFactor", r.convFactor ?? "", { readonly: true }),
         tdNavInputCalc(tabId, i, 9, "converted", String(r.converted ?? 0), { readonly: true }),
@@ -777,191 +1265,227 @@
     table.appendChild(thead);
     table.appendChild(tbody);
 
+        raf2(() => __applyCalcRowSelectionStyles(tabId));
+
+    // ✅ buildCalcTable 내부 keydown (중간생략 없음)
     table.addEventListener("keydown", (e) => {
       const t = e.target;
       if (!(t instanceof HTMLInputElement)) return;
       if (t.dataset.grid !== "calc") return;
 
-      if (t.dataset.editing === "1" && e.key === "Enter") {
-        e.preventDefault();
-        delete t.dataset.editing;
-        return;
-      }
-
-      if (e.key === "Enter") {
-        e.preventDefault();
-        recomputeSection(tabId);
-        saveState();
-        refreshCalcComputed(tabId);
-      }
-    }, true);
-
-    return table;
-  }
-
-  function tdNavInputCalc(tabId, row, col, field, value, opts = {}) {
-    const bucket = state[tabId];
-    const sec = bucket.sections[bucket.activeSection];
-
-    const input = el("input", {
-      class: "cell" + (opts.readonly ? " readonly" : ""),
-      value: value ?? "",
-      placeholder: opts.placeholder || "",
-      readonly: opts.readonly ? "readonly" : null,
-      dataset: { grid: "calc", tab: tabId, row: String(row), col: String(col), field },
-      oninput: (e) => {
-        if (opts.readonly) return;
-
-        const rr = sec.rows[row];
-        if (!rr) return;
-
-        if (field === "code") {
-          rr.code = e.target.value.toUpperCase().trim();
-          recomputeSection(tabId);
-          saveState();
-          refreshCalcComputed(tabId);
-        } else if (field === "surchargePct") {
-          const v = e.target.value.trim();
-          rr.surchargePct = v === "" ? null : Number(v);
-          recomputeSection(tabId);
-          saveState();
-          refreshCalcComputed(tabId);
-        } else {
-          rr[field] = e.target.value;
-        }
-      }
-    });
-
-    input.addEventListener("blur", () => { delete input.dataset.editing; });
-
-    return el("td", {}, [input]);
-  }
-
-  function refreshCalcComputed(tabId) {
-    const bucket = state[tabId];
-    const sec = bucket.sections[bucket.activeSection];
-
-    const inputs = document.querySelectorAll(`input[data-grid="calc"][data-tab="${tabId}"]`);
-    inputs.forEach((inp) => {
-      const r = Number(inp.dataset.row);
-      const f = inp.dataset.field;
-      const rowObj = sec.rows[r];
-      if (!rowObj) return;
-
-      if (["name", "spec", "unit", "value", "convUnit", "convFactor", "converted"].includes(f)) {
-        inp.value = (rowObj[f] ?? "") + "";
-      }
-    });
-  }
-
-  /***************
-   * ✅ Grid navigation + F2 edit mode
-   ***************/
-  function attachGridNav(container) {
-    container.addEventListener("keydown", (e) => {
-      const t = e.target;
-      const isInput = (t instanceof HTMLInputElement) || (t instanceof HTMLTextAreaElement);
-      if (!isInput) return;
-
-      const grid = t.dataset.grid;
-      if (grid !== "calc" && grid !== "var" && grid !== "code") return;
-
-      if (e.key === "F2") {
-        if (t.hasAttribute("readonly")) return;
-        e.preventDefault();
-        t.dataset.editing = "1";
-        try {
-          const len = (t.value ?? "").length;
-          t.setSelectionRange(len, len);
-        } catch {}
-        return;
-      }
-
+      // 편집 중이면 Enter로 편집 종료만 허용
       if (t.dataset.editing === "1") {
         if (e.key === "Enter") {
           e.preventDefault();
           delete t.dataset.editing;
+          t.blur();
+          raf2(() => safeFocus(t));
         }
         return;
       }
 
-      const key = e.key;
-      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) return;
+      const curRow = Number(t.dataset.row || 0);
 
-      e.preventDefault();
+      // ESC: 다중선택 종료
+      if (e.key === "Escape") {
+        if (__calcMulti.active) {
+          e.preventDefault();
+          __calcMultiClear();
+          __applyCalcRowSelectionStyles(tabId);
+        }
+        return;
+      }
 
-      const row = Number(t.dataset.row);
-      const col = Number(t.dataset.col);
-      let nr = row, nc = col;
+      // Shift+B: 다중선택 토글
+      if ((e.key === "B" || e.key === "b") && e.shiftKey) {
+        e.preventDefault();
+        if (!__calcMultiIsSameContext(tabId)) __calcMultiBegin(tabId, curRow);
+        else __calcMultiClear();
+        __applyCalcRowSelectionStyles(tabId);
+        return;
+      }
 
-      if (key === "ArrowUp") nr = row - 1;
-      if (key === "ArrowDown") nr = row + 1;
-      if (key === "ArrowLeft") nc = col - 1;
-      if (key === "ArrowRight") nc = col + 1;
+      // Shift+↑/↓ : 다중선택 범위 확장 + 포커스 이동
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && e.shiftKey) {
+        e.preventDefault();
 
-      const selector = `[data-grid="${grid}"][data-row="${nr}"][data-col="${nc}"]`;
-      const next = container.querySelector(selector);
+        const bucket = state[tabId];
+        const sec = bucket.sections[bucket.activeSection];
 
-      if (next && ((next instanceof HTMLInputElement) || (next instanceof HTMLTextAreaElement))) {
-        safeFocus(next);
-        ensureScrollIntoView();
+        const next = clamp(
+          curRow + (e.key === "ArrowDown" ? 1 : -1),
+          0,
+          sec.rows.length - 1
+        );
+
+        if (!__calcMultiIsSameContext(tabId)) __calcMultiBegin(tabId, curRow);
+        __calcMultiSetRange(tabId, __calcMulti.anchorRow ?? curRow, next);
+        __applyCalcRowSelectionStyles(tabId);
+
+        raf2(() => {
+          const col = t.dataset.col || String(CALC_COL_INDEX.code);
+          const target = document.querySelector(
+            `input[data-grid="calc"][data-tab="${tabId}"][data-row="${next}"][data-col="${col}"]`
+          );
+          safeFocus(target);
+          ensureScrollIntoView(target);
+        });
+        return;
+      }
+
+      // Ctrl+Del: 선택행 삭제(없으면 현재행)
+      if ((e.key === "Delete" || e.key === "Del") && e.ctrlKey) {
+        e.preventDefault();
+        const selected = __getSelectedCalcRows(tabId);
+        const targets = selected.length ? selected : [curRow];
+        if (!confirm(`선택된 ${targets.length}행을 삭제할까요?`)) return;
+        deleteCalcRows(tabId, targets);
+        __calcMultiClear();
+        return;
+      }
+
+      // Del(단독): 현재행 삭제
+      if ((e.key === "Delete" || e.key === "Del") && !e.ctrlKey) {
+        e.preventDefault();
+        if (!confirm("현재 행을 삭제할까요?")) return;
+        deleteCalcRows(tabId, [curRow]);
+        return;
+      }
+
+      // Ctrl+G: 선택행 복사/삽입
+      if ((e.key === "g" || e.key === "G") && e.ctrlKey) {
+        e.preventDefault();
+        const selected = __getSelectedCalcRows(tabId);
+        if (!selected.length) return;
+        duplicateCalcRows(tabId, selected, curRow);
+        return;
       }
     }, true);
+
+
+
+    // ✅ input 변화가 있을 때 재계산 + 저장 + 렌더 반영
+    table.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
+      if (t.dataset.grid !== "calc") return;
+      if (t.dataset.tab !== tabId) return;
+
+      const row = Number(t.dataset.row || 0);
+      const field = t.dataset.field;
+
+      const bucket2 = state[tabId];
+      const sec2 = bucket2.sections[bucket2.activeSection];
+      const rr = sec2.rows[row];
+      if (!rr) return;
+
+      if (field === "code") {
+        rr.code = (t.value || "").trim();
+      } else if (field === "formula") {
+        rr.formula = t.value || "";
+      } else {
+        // readonly는 원칙적으로 여기에 안 옴
+        rr[field] = t.value;
+      }
+
+      recomputeSection(tabId);
+      saveState();
+      refreshCalcComputed(tabId); // 값/환산/자동필드 갱신
+    });
+
+    return table;
   }
 
-  /***************
-   * scroll helpers
-   ***************/
-  function forceScrollStyle(scrollEl) {
-    if (!scrollEl) return;
-    scrollEl.style.overflow = "auto";
-    scrollEl.style.webkitOverflowScrolling = "touch";
-    scrollEl.tabIndex = -1;
-  }
+  function tdNavInputCalc(tabId, row, _colNo, field, value, opts = {}) {
+  const bucket = state[tabId];
+  const sec = bucket.sections[bucket.activeSection];
 
-  function attachWheelLock(scrollEl) {
-    if (!scrollEl) return;
+  // ✅ data-col은 무조건 “실제 테이블 열 번호”로 고정 (field 기반)
+  const dataCol = String(CALC_COL_INDEX[field] ?? 0);
 
-    scrollEl.addEventListener("wheel", (e) => {
-      const canScroll = scrollEl.scrollHeight > scrollEl.clientHeight + 2;
-      if (!canScroll) return;
+  const input = el("input", {
+    class: "cell" + (opts.readonly ? " readonly" : ""),
+    value: value ?? "",
+    placeholder: opts.placeholder || "",
+    readonly: opts.readonly ? "readonly" : null,
+    dataset: { grid: "calc", tab: tabId, row: String(row), col: dataCol, field },
 
-      e.preventDefault();
-      scrollEl.scrollTop += e.deltaY;
-    }, { passive: false });
-  }
+    onfocus: () => {
+      // 다중선택 표시 갱신
+      if (__calcMulti.active && __calcMultiIsSameContext(tabId)) {
+        __applyCalcRowSelectionStyles(tabId);
+      }
+    },
 
-  function ensureScrollIntoView() {
-    const a = document.activeElement;
-    if (!(a instanceof HTMLElement)) return;
+    onkeydown: (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
 
-    const scroll = a.closest(".calc-scroll");
-    if (!scroll) return;
+      // F2: 편집모드 플래그
+      if (e.key === "F2") {
+        if (t.readOnly) return;
+        e.preventDefault();
+        t.dataset.editing = "1";
+        t.setSelectionRange?.(t.value.length, t.value.length);
+        return;
+      }
 
-    const r = a.getBoundingClientRect();
-    const s = scroll.getBoundingClientRect();
+      // Enter: 편집모드 종료
+      if (e.key === "Enter") {
+        if (t.dataset.editing === "1") {
+          e.preventDefault();
+          delete t.dataset.editing;
+          t.blur();
+          raf2(() => safeFocus(t));
+          return;
+        }
+      }
+    },
 
-    const thead = scroll.querySelector("thead");
-    const headH = thead ? Math.ceil(thead.getBoundingClientRect().height) : 0;
-
-    const topPad = headH + 6;
-    const botPad = 6;
-
-    if (r.top < s.top + topPad) {
-      scroll.scrollTop -= (s.top + topPad - r.top);
-    } else if (r.bottom > s.bottom - botPad) {
-      scroll.scrollTop += (r.bottom - (s.bottom - botPad));
+    oninput: (e) => {
+      if (opts.readonly) return;
+      const rr = sec.rows[row];
+      if (!rr) return;
+      rr[field] = e.target.value;
     }
+  });
+
+  input.addEventListener("blur", () => { delete input.dataset.editing; });
+  return el("td", {}, [input]);
+}
+
+
+  function refreshCalcComputed(tabId) {
+    // 현재 tab의 calc-table에서 readonly 셀들 업데이트
+    const bucket = state[tabId];
+    const sec = bucket.sections[bucket.activeSection];
+
+    sec.rows.forEach((r, i) => {
+      const setVal = (field, v) => {
+        const col = CALC_COL_INDEX[field];
+        const inp = document.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${i}"][data-col="${col}"]`);
+        if (inp) inp.value = (v ?? "");
+      };
+
+      setVal("name", r.name || "");
+      setVal("spec", r.spec || "");
+      setVal("unit", r.unit || "");
+      setVal("value", String(r.value ?? 0));
+      setVal("surchargePct", (r.surchargePct ?? "") === null ? "" : String(r.surchargePct ?? ""));
+      setVal("convUnit", r.convUnit || "");
+      setVal("convFactor", (r.convFactor ?? "") === null ? "" : String(r.convFactor ?? ""));
+      setVal("converted", String(r.converted ?? 0));
+    });
+
+    // 다중선택 표시 갱신
+    raf2(() => __applyCalcRowSelectionStyles(tabId));
   }
 
-  /***************
-   * Row add/delete/shortcuts/picker/export/import/reset
-   ***************/
   function addRows(tabId, n, insertAfterRow = null) {
     const bucket = state[tabId];
     const sec = bucket.sections[bucket.activeSection];
 
-    const idx = (insertAfterRow == null) ? (sec.rows.length - 1) : insertAfterRow;
+    const idx = insertAfterRow == null ? (sec.rows.length - 1) : insertAfterRow;
     const insertPos = clamp(idx + 1, 0, sec.rows.length);
 
     const newRows = Array.from({ length: n }, () => defaultCalcRow());
@@ -971,853 +1495,1360 @@
     render();
 
     raf2(() => {
+      updateViewFillHeight();
       updateScrollHeights();
-      const first = document.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${insertPos}"][data-col="0"]`);
-      if (first) safeFocus(first);
-      ensureScrollIntoView();
+      const first = document.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${insertPos}"][data-col="${CALC_COL_INDEX.code}"]`);
+      safeFocus(first);
+      ensureScrollIntoView(first);
     });
   }
 
-  function addVarRows(tabId, n, insertAfterRow = null) {
+  function deleteCalcRows(tabId, rowIndices) {
+    const bucket = state[tabId];
+    const sec = bucket.sections[bucket.activeSection];
+    const uniq = [...new Set(rowIndices)].sort((a, b) => b - a); // 뒤에서부터 삭제
+
+    uniq.forEach((r) => {
+      if (r >= 0 && r < sec.rows.length) sec.rows.splice(r, 1);
+    });
+
+    if (sec.rows.length === 0) sec.rows.push(defaultCalcRow());
+
+    saveState();
+    render();
+
+    raf2(() => {
+      updateViewFillHeight();
+      updateScrollHeights();
+      const targetRow = clamp(Math.min(...rowIndices), 0, sec.rows.length - 1);
+      const target = document.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${targetRow}"][data-col="${CALC_COL_INDEX.code}"]`);
+      safeFocus(target);
+      ensureScrollIntoView(target);
+    });
+  }
+
+  function duplicateCalcRows(tabId, rowIndices, insertAfterRow) {
     const bucket = state[tabId];
     const sec = bucket.sections[bucket.activeSection];
 
-    const idx = (insertAfterRow == null) ? (sec.vars.length - 1) : insertAfterRow;
-    const insertPos = clamp(idx + 1, 0, sec.vars.length);
+    const selected = [...new Set(rowIndices)].sort((a, b) => a - b);
+    const clones = selected
+      .map((r) => sec.rows[r])
+      .filter(Boolean)
+      .map((r) => deepClone(r));
 
-    const newRows = Array.from({ length: n }, () => defaultVarRow());
-    sec.vars.splice(insertPos, 0, ...newRows);
+    if (!clones.length) return;
 
-    recomputeSection(tabId);
+    const insertPos = clamp((insertAfterRow ?? selected[selected.length - 1]) + 1, 0, sec.rows.length);
+    sec.rows.splice(insertPos, 0, ...clones);
+
     saveState();
     render();
 
     raf2(() => {
+      updateViewFillHeight();
       updateScrollHeights();
-      const first = document.querySelector(`input[data-grid="var"][data-tab="${tabId}"][data-row="${insertPos}"][data-col="0"]`);
-      if (first) safeFocus(first);
-      ensureScrollIntoView();
+      const target = document.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${insertPos}"][data-col="${CALC_COL_INDEX.code}"]`);
+      safeFocus(target);
+      ensureScrollIntoView(target);
     });
   }
 
-  function deleteCalcRowAtActiveCell(inputEl) {
-    const tabId = inputEl.dataset.tab;
-    const row = Number(inputEl.dataset.row);
-    const col = Number(inputEl.dataset.col);
-
+  /* ============================
+     ✅ Summation Tabs (steel_sum / support_sum)
+     - (v12.3) 개소(count) 반영
+     - (v12.3) 환산단위/환산계수 있으면 converted 기준 집계
+  ============================ */
+  function buildSummaryRows(tabId) {
     const bucket = state[tabId];
-    const sec = bucket.sections[bucket.activeSection];
+    const map = new Map();
 
-    if (!sec?.rows?.length) return;
-    if (sec.rows.length <= 1) {
-      sec.rows[0] = defaultCalcRow();
-    } else {
-      sec.rows.splice(row, 1);
-    }
+    bucket.sections.forEach((sec) => {
+      const count = Number(sec.count ?? 1);
+      const mult = Number.isFinite(count) && count > 0 ? count : 1;
 
-    recomputeSection(tabId);
-    saveState();
-    render();
+      // section별로 vars/rows 값이 계산되어 있어야 함
+      // recomputeSection는 activeSection만 계산하므로, 여기선 간단히 현재 저장값(value/converted)을 사용
+      sec.rows.forEach((r) => {
+        const code = (r.code || "").trim();
+        if (!code) return;
 
-    raf2(() => {
-      updateScrollHeights();
-      const nr = clamp(row, 0, (sec.rows.length - 1));
-      const target = document.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${nr}"][data-col="${col}"]`);
-      if (target) safeFocus(target);
-      ensureScrollIntoView();
+        const info = codeLookup(code);
+        const unit = info?.unit || r.unit || "";
+        const surcharge = (r.surchargePct == null ? (info?.surcharge ?? null) : r.surchargePct);
+
+        // 환산계수 있으면 converted 기준
+        const hasConv = r.convFactor != null && Number.isFinite(Number(r.convFactor)) && Number(r.convFactor) !== 0;
+        const qty = hasConv ? Number(r.converted || 0) : Number((r.value || 0) * (r.surchargeMul || 1));
+
+        const key = code.toUpperCase();
+        const prev = map.get(key) || {
+          code,
+          name: info?.name || r.name || "",
+          spec: info?.spec || r.spec || "",
+          unit,
+          convUnit: info?.convUnit || r.convUnit || "",
+          convFactor: info?.convFactor ?? r.convFactor ?? null,
+          surchargePct: surcharge,
+          qty: 0,
+        };
+        prev.qty += qty * mult;
+        map.set(key, prev);
+      });
     });
+
+    return [...map.values()].sort((a, b) => String(a.code).localeCompare(String(b.code)));
   }
 
-  function deleteCodeMasterRowAtActiveCell(inputEl) {
-    const row = Number(inputEl.dataset.row);
-    const col = Number(inputEl.dataset.col);
+  function renderSummaryTab(srcTabId, title) {
+    const rows = buildSummaryRows(srcTabId);
 
-    if (!Array.isArray(state.codeMaster)) return;
-    if (state.codeMaster.length <= 1) {
-      state.codeMaster[0] = { code:"", name:"", spec:"", unit:"", surcharge:null, convUnit:"", convFactor:null, note:"" };
-    } else {
-      state.codeMaster.splice(row, 1);
-    }
+    const header = el("div", { class: "panel-header sticky-head", dataset: { sticky: "panel" } }, [
+      el("div", {}, [ el("div", { class: "panel-title" }, [title]) ]),
+      el("div", { class: "row-actions" }, [
+        el("button", { class: "smallbtn", onclick: () => { /* noop */ } }, ["집계(자동)"]),
+      ]),
+    ]);
 
-    saveState();
-    render();
+    const table = el("table", { class: "code-table" }, []);
+    table.style.tableLayout = "fixed";
+    table.style.width = "100%";
+    table.style.minWidth = "100%";
+    table.appendChild(buildColGroupFromWeights([0.9, 2.4, 2.4, 0.8, 0.8, 0.9, 0.9, 1.4, 1.2]));
 
-    raf2(() => {
-      updateScrollHeights();
-      const nr = clamp(row, 0, state.codeMaster.length - 1);
-      const target = document.querySelector(`input[data-grid="code"][data-row="${nr}"][data-col="${col}"]`);
-      if (target) safeFocus(target);
-      ensureScrollIntoView();
+    const thead = el("thead", {}, [
+      el("tr", {}, [
+        el("th", {}, ["코드"]),
+        el("th", {}, ["품명"]),
+        el("th", {}, ["규격"]),
+        el("th", {}, ["단위"]),
+        el("th", {}, ["할증"]),
+        el("th", {}, ["환산단위"]),
+        el("th", {}, ["환산계수"]),
+        el("th", {}, ["수량(환산/할증 반영)"]),
+        el("th", {}, ["비고"]),
+      ])
+    ]);
+
+    const tbody = el("tbody", {}, []);
+    rows.forEach((r) => {
+      tbody.appendChild(el("tr", {}, [
+        el("td", {}, [r.code]),
+        el("td", {}, [r.name || ""]),
+        el("td", {}, [r.spec || ""]),
+        el("td", {}, [r.unit || ""]),
+        el("td", {}, [r.surchargePct == null ? "" : String(r.surchargePct)]),
+        el("td", {}, [r.convUnit || ""]),
+        el("td", {}, [r.convFactor == null ? "" : String(r.convFactor)]),
+        el("td", {}, [String(Math.round((Number(r.qty) || 0) * 1000) / 1000)]),
+        el("td", {}, [""]),
+      ]));
     });
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+
+    const scroll = el("div", { class: "table-wrap calc-scroll", dataset: { scroll: "sum" } }, [table]);
+    forceScrollStyle(scroll);
+    attachWheelLock(scroll);
+
+    return el("div", { class: "panel" }, [header, scroll]);
   }
 
-  window.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === ".") {
-      e.preventDefault();
-      e.stopPropagation();
-      openCodePicker();
-      return;
+  /* ============================
+     ✅ Grid Navigation (Arrow/PageUp/PageDown/Home/End)
+     - (간단 구현) data-grid="code|var|calc"
+  ============================ */
+  function parseCellDataset(input) {
+    const ds = input?.dataset || {};
+    return {
+      grid: ds.grid || "",
+      tab: ds.tab || "",
+      row: Number(ds.row || 0),
+      col: Number(ds.col || 0),
+    };
+  }
+
+  function queryCell(grid, tab, row, col) {
+    const selector =
+      grid === "code"
+        ? `input[data-grid="code"][data-row="${row}"][data-col="${col}"]`
+        : `input[data-grid="${grid}"][data-tab="${tab}"][data-row="${row}"][data-col="${col}"]`;
+    return document.querySelector(selector);
+  }
+
+  function moveCell(fromInput, dRow, dCol, pageJump = false) {
+  const { grid, tab, row, col } = parseCellDataset(fromInput);
+  if (!grid) return;
+
+  // row/col 범위 추정
+  let maxRow = 0;
+  let maxCol = 0;
+
+  const all = grid === "code"
+    ? document.querySelectorAll(`input[data-grid="code"]`)
+    : document.querySelectorAll(`input[data-grid="${grid}"][data-tab="${tab}"]`);
+
+  all.forEach((x) => {
+    const r = Number(x.dataset.row || 0);
+    const c = Number(x.dataset.col || 0);
+    if (r > maxRow) maxRow = r;
+    if (c > maxCol) maxCol = c;
+  });
+
+  let nextRow = clamp(row + dRow, 0, maxRow);
+  let nextCol = clamp(col + dCol, 0, maxCol);
+
+  if (pageJump) {
+    // pageJump일 때는 scroller 높이 기준으로 row를 대략 이동
+    const sc = fromInput.closest(".calc-scroll");
+    if (sc) {
+      const rect = sc.getBoundingClientRect();
+      const rowH = 34; // 대략
+      const jump = Math.max(1, Math.floor(rect.height / rowH) - 1);
+      nextRow = clamp(row + (dRow > 0 ? jump : -jump), 0, maxRow);
     }
+  }
 
-    const isCtrlDel =
-      e.ctrlKey &&
-      !e.shiftKey &&
-      !e.altKey &&
-      (
-        e.key === "Delete" || e.key === "Del" || e.key === "Backspace" ||
-        e.code === "Delete" || e.code === "Backspace" ||
-        e.keyCode === 46 || e.keyCode === 8
-      );
+  const target = queryCell(grid, tab, nextRow, nextCol);
+  if (target) {
+    // ✅ 포커스는 1번만 (2번 주면 sticky/transform 환경에서 튐이 생길 수 있음)
+    safeFocus(target);
 
-    if (isCtrlDel) {
-      const a = document.activeElement;
-      const isEditableEl = (a instanceof HTMLInputElement) || (a instanceof HTMLTextAreaElement);
-      if (!isEditableEl) return;
+    // ✅ 스크롤만 다음 프레임에서 보정
+    raf2(() => {
+      ensureScrollIntoView(target);
+    });
+  }
+}
 
-      const grid = a.dataset?.grid;
-      if (grid !== "calc" && grid !== "var" && grid !== "code") return;
-      if (a.hasAttribute("readonly")) return;
+function attachGridNav(container) {
+  if (!container) return;
+  container.addEventListener("keydown", (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLInputElement)) return;
+    if (!t.dataset.grid) return;
 
-      const ok = confirm("정말로 삭제할까요?\n- 산출표/코드표: 현재 '행'이 삭제됩니다.\n- 변수표: 현재 '셀'이 비워집니다.");
-      if (!ok) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
+    // 편집중이면 방향키 이동 막음
+    if (t.dataset.editing === "1") return;
 
-      e.preventDefault();
-      e.stopPropagation();
+    const isInput = (document.activeElement instanceof HTMLInputElement);
+    if (!isInput) return;
 
-      if (grid === "calc") { deleteCalcRowAtActiveCell(a); return; }
-      if (grid === "code") { deleteCodeMasterRowAtActiveCell(a); return; }
+    const key = e.key;
 
-      a.value = "";
-      a.dispatchEvent(new Event("input", { bubbles: true }));
-      return;
-    }
-
-    if (e.ctrlKey && (e.key === "F3")) {
-      const a = document.activeElement;
-      const isEditableEl = (a instanceof HTMLInputElement) || (a instanceof HTMLTextAreaElement);
-      if (!isEditableEl) return;
-
-      const grid = a.dataset.grid;
-
-      if (grid === "calc") {
-        e.preventDefault();
-        e.stopPropagation();
-        const tabId = a.dataset.tab;
-        const row = Number(a.dataset.row);
-        if (e.shiftKey) addRows(tabId, 10, row);
-        else addRows(tabId, 1, row);
-        return;
-      }
-
+    if (key === "ArrowUp") { e.preventDefault(); moveCell(t, -1, 0); }
+    else if (key === "ArrowDown") { e.preventDefault(); moveCell(t, 1, 0); }
+    else if (key === "ArrowLeft") { e.preventDefault(); moveCell(t, 0, -1); }
+    else if (key === "ArrowRight") { e.preventDefault(); moveCell(t, 0, 1); }
+    else if (key === "PageUp") { e.preventDefault(); moveCell(t, -1, 0, true); }
+    else if (key === "PageDown") { e.preventDefault(); moveCell(t, 1, 0, true); }
+    else if (key === "Home" && e.ctrlKey) { e.preventDefault(); moveCell(t, -99999, 0); }
+    else if (key === "End" && e.ctrlKey) { e.preventDefault(); moveCell(t, 99999, 0); }
+    else if ((key === "Delete" || key === "Del") && e.ctrlKey) {
+      // Ctrl+Del: 변수표는 현재 셀 비움 / 코드표/산출표는 “현재 행 삭제”를 상단 핸들러에서 처리
+      const grid = t.dataset.grid;
       if (grid === "var") {
+        if (t.readOnly) return;
         e.preventDefault();
-        e.stopPropagation();
-        const tabId = a.dataset.tab;
-        const row = Number(a.dataset.row);
-        if (e.shiftKey) addVarRows(tabId, 10, row);
-        else addVarRows(tabId, 1, row);
-        return;
-      }
-
-      if (grid === "code") {
-        e.preventDefault();
-        e.stopPropagation();
-        const row = Number(a.dataset.row);
-        if (e.shiftKey) addCodeRows(10, row);
-        else addCodeRows(1, row);
-        return;
+        t.value = "";
+        t.dispatchEvent(new Event("input", { bubbles: true }));
       }
     }
-  }, { capture: true });
+  }, true);
+}
 
-  /***************
-   * Code Picker Popup (기존 그대로)
-   ***************/
-  let __pickerWin = null;
-
-  function openCodePicker() {
-    let originTab = state.activeTab || "steel";
-    let focusRow = 0;
-
-    const a = document.activeElement;
-    if (a instanceof HTMLInputElement && a.dataset.grid === "calc") {
-      originTab = a.dataset.tab || originTab;
-      focusRow = Number(a.dataset.row || 0);
-    }
-
-    const codesForPicker = (state.codeMaster || []).map(r => ({
-      code: (r.code ?? "").toString(),
-      name: (r.name ?? "").toString(),
-      spec: (r.spec ?? "").toString(),
-      unit: (r.unit ?? "").toString(),
-      surcharge: (r.surcharge ?? "").toString(),
-      conv_unit: (r.convUnit ?? "").toString(),
-      conv_factor: (r.convFactor ?? "").toString(),
-      note: (r.note ?? "").toString(),
-    }));
-
-    const url = "picker.html";
-
-    __pickerWin = window.open(url, "FIN_CODE_PICKER", "width=1100,height=760");
-    if (!__pickerWin) {
-      alert("팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도해 주세요.");
-      return;
-    }
-
-    let tries = 0;
-    const timer = setInterval(() => {
-      tries++;
-      try {
-        __pickerWin.postMessage(
-          { type: "INIT", originTab, focusRow, codes: codesForPicker },
-          window.location.origin
-        );
-      } catch {}
-      if (tries >= 12) clearInterval(timer);
-    }, 120);
+  /* ============================
+     ✅ wheel lock (trackpad/space bounce 방지)
+  ============================ */
+  function attachWheelLock(scroller) {
+    if (!scroller) return;
+    scroller.addEventListener("wheel", (e) => {
+      // 기본 스크롤 허용(단, 바깥으로 튀는 스크롤만 차단)
+      const el = scroller;
+      const delta = e.deltaY;
+      if (delta < 0 && el.scrollTop <= 0) e.preventDefault();
+      else if (delta > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight) e.preventDefault();
+    }, { passive: false });
   }
+
+  function forceScrollStyle(sc) {
+  if (!sc || !(sc instanceof HTMLElement)) return;
+  sc.style.overflow = "auto";
+  sc.style.webkitOverflowScrolling = "touch";
+  sc.style.minHeight = "0";
+  sc.tabIndex = -1;
+
+  // ✅ 사용자가 스크롤 중인지 판단하기 위한 타임스탬프 기록
+  if (!sc.__finScrollBound) {
+    sc.__finScrollBound = true;
+    sc.addEventListener("scroll", () => {
+      sc.__lastScrollAt = Date.now();
+    }, { passive: true });
+  }
+}
+
+
+  function ensureScrollIntoView(target) {
+  if (!target || !(target instanceof HTMLElement)) return;
+  const sc = target.closest(".calc-scroll");
+  if (!sc) return;
+
+  const tRect = target.getBoundingClientRect();
+  const sRect = sc.getBoundingClientRect();
+
+  // ✅ 스티키 헤더(패널헤더/테이블헤더)에 가려지는 상단 여유를 반영
+  // (실측 기반으로 복잡하게 가지 않고, 안정적인 고정 topPad로 보정)
+  const topPad = 60;     // 대략 thead + 여유
+  const bottomPad = 10;
+
+  if (tRect.top < sRect.top + topPad) {
+    sc.scrollTop -= (sRect.top + topPad - tRect.top);
+  } else if (tRect.bottom > sRect.bottom - bottomPad) {
+    sc.scrollTop += (tRect.bottom - (sRect.bottom - bottomPad));
+  }
+}
+
+  /* ============================
+     ✅ Sticky Panel Top 적용
+  ============================ */
+  function applyPanelStickyTop() {
+    const root = document.documentElement;
+    const top = state.activeTab === "code"
+      ? getComputedStyle(root).getPropertyValue("--stickyBaseTop").trim()
+      : getComputedStyle(root).getPropertyValue("--stickyWithTopSplitTop").trim();
+
+    document.querySelectorAll('[data-sticky="panel"]').forEach((h) => {
+      if (!(h instanceof HTMLElement)) return;
+      h.style.top = top || "0px";
+    });
+  }
+
+
+   function openExportModal() {
+  // 프로젝트 미선택 방지
+  if (!activeProjectId) {
+    alert("프로젝트를 먼저 선택(열기)해 주세요.");
+    return;
+  }
+
+  // 이미 모달이 있으면 제거 후 재생성(중복 방지)
+  const old = document.getElementById("exportModal");
+  if (old) old.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "exportModal";
+  modal.className = "modal";
+  modal.setAttribute("aria-hidden", "false");
+  modal.hidden = false;
+
+  modal.innerHTML = `
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+      <div class="modal-head">
+        <div class="modal-title" id="exportModalTitle">내보내기(EXCEL)</div>
+        <div class="modal-head-actions">
+          <button id="btnExportAll" class="btn">전체선택</button>
+          <button id="btnExportDo" class="btn btn-primary">다운로드</button>
+          <button id="btnExportClose" class="btn">닫기</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="project-hint" style="margin-bottom:10px;">
+          내보낼 탭을 선택하세요.
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <label style="display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" data-tab="code" checked />
+            <b>코드</b>
+          </label>
+
+          <label style="display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" data-tab="steel" checked />
+            <b>철골</b>
+          </label>
+
+          <label style="display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" data-tab="steel_sub" checked />
+            <b>철골_부자재</b>
+          </label>
+
+          <label style="display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" data-tab="support" checked />
+            <b>구조이기/동바리</b>
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <div class="muted">* 선택한 탭들이 하나의 .xlsx 파일에 시트로 포함됩니다.</div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const close = () => {
+    modal.setAttribute("aria-hidden", "true");
+    modal.hidden = true;
+    modal.remove();
+  };
+
+  modal.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t && t.getAttribute && t.getAttribute("data-close") === "1") close();
+  });
+
+  const btnClose = document.getElementById("btnExportClose");
+  const btnAll = document.getElementById("btnExportAll");
+  const btnDo = document.getElementById("btnExportDo");
+
+  if (btnClose) btnClose.onclick = close;
+
+  if (btnAll) {
+    btnAll.onclick = () => {
+      const checks = modal.querySelectorAll('input[type="checkbox"][data-tab]');
+      const allChecked = Array.from(checks).every(c => c.checked);
+      checks.forEach(c => { c.checked = !allChecked; });
+    };
+  }
+
+  if (btnDo) {
+    btnDo.onclick = () => {
+      const checks = modal.querySelectorAll('input[type="checkbox"][data-tab]');
+      const selected = Array.from(checks).filter(c => c.checked).map(c => c.getAttribute("data-tab"));
+      if (!selected.length) {
+        alert("내보낼 탭을 1개 이상 선택해 주세요.");
+        return;
+      }
+      exportToExcelSelectedTabs(selected);
+      close();
+    };
+  }
+}
+
+
+
+   
+  /* ============================
+     ✅ Export / Import (placeholder-safe)
+     - XLSX가 페이지에 로드되어 있으면 실제로 동작
+     - 없으면 alert로 안내 (런타임 에러 방지)
+  ============================ */
+  function exportToExcelSelectedTabs(tabIds) {
+  if (!window.XLSX) {
+    alert("XLSX 라이브러리가 로드되지 않았습니다.\nCDN(xlsx.full.min.js) 로드 상태를 확인해 주세요.");
+    return;
+  }
+
+  const wb = window.XLSX.utils.book_new();
+
+  const sanitizeSheetName = (name) => {
+    // Excel sheet name 제한 대응: \ / ? * [ ] : 최대 31자
+    return String(name || "")
+      .replace(/[\\/?*\[\]:]/g, "_")
+      .slice(0, 31) || "Sheet";
+  };
+
+  const addSheet = (sheetName, aoaOrJson, mode = "aoa") => {
+    const ws = (mode === "json")
+      ? window.XLSX.utils.json_to_sheet(aoaOrJson)
+      : window.XLSX.utils.aoa_to_sheet(aoaOrJson);
+    window.XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(sheetName));
+  };
+
+  const want = new Set((tabIds || []).map(x => String(x)));
+
+  // 1) Codes (코드마스터)
+  if (want.has("code")) {
+    const rows = Array.isArray(state.codeMaster) ? state.codeMaster : [];
+    const aoa = [
+      ["code", "name", "spec", "unit", "surcharge", "convUnit", "convFactor", "note"],
+      ...rows.map(r => ([
+        r.code ?? "",
+        r.name ?? "",
+        r.spec ?? "",
+        r.unit ?? "",
+        r.surcharge ?? "",
+        r.convUnit ?? "",
+        r.convFactor ?? "",
+        r.note ?? ""
+      ]))
+    ];
+    addSheet("Codes", aoa, "aoa");
+  }
+
+  // 2) 산출탭(구분 포함 flatten)
+  const exportCalcTab = (tabId, sheetTitle) => {
+    const bucket = state?.[tabId];
+    if (!bucket || !Array.isArray(bucket.sections)) return;
+
+    // export 전 계산값 최신화(현재 activeSection만 recompute가 아니라, export는 저장값 기준이라도 괜찮지만
+    // 최대한 정확하게 하려면 섹션별로 varMap 재계산이 필요 -> 간단히 activeSection만 최신화 + 저장값 사용)
+    try { recomputeSection(tabId); } catch {}
+
+    const aoa = [
+      ["sectionName", "count", "no", "code", "name", "spec", "unit", "formula", "value", "surchargePct", "convUnit", "convFactor", "converted", "note"],
+    ];
+
+    bucket.sections.forEach((sec, sidx) => {
+      const sectionName = sec?.name ?? `구분 ${sidx + 1}`;
+      const count = sec?.count ?? "";
+
+      const rows = Array.isArray(sec?.rows) ? sec.rows : [];
+      rows.forEach((r, i) => {
+        aoa.push([
+          sectionName,
+          count,
+          i + 1,
+          r.code ?? "",
+          r.name ?? "",
+          r.spec ?? "",
+          r.unit ?? "",
+          r.formula ?? "",
+          r.value ?? 0,
+          r.surchargePct ?? "",
+          r.convUnit ?? "",
+          r.convFactor ?? "",
+          r.converted ?? 0,
+          r.note ?? ""
+        ]);
+      });
+    });
+
+    addSheet(sheetTitle, aoa, "aoa");
+  };
+
+  if (want.has("steel")) exportCalcTab("steel", "철골");
+  if (want.has("steel_sub")) exportCalcTab("steel_sub", "철골_부자재");
+  if (want.has("support")) exportCalcTab("support", "구조이기_동바리");
+
+  // 파일명: 프로젝트명 반영
+  const meta = projectIndex.projects.find(p => p.id === activeProjectId);
+  const baseName = meta ? `${(meta.code || "FIN")}_${(meta.name || "Project")}` : "FIN_Project";
+  const filename = `${baseName}_export.xlsx`;
+
+  window.XLSX.writeFile(wb, filename);
+}
+
+function importFromExcelFile(file) {
+  if (!window.XLSX) {
+    alert("XLSX 라이브러리가 로드되지 않았습니다.\nCDN(xlsx.full.min.js) 로드 상태를 확인해 주세요.");
+    return;
+  }
+
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const data = evt.target.result;
+      const wb = window.XLSX.read(data, { type: "array" });
+
+      // Codes 또는 코드 시트 찾기
+      const sheetName =
+        wb.SheetNames.find(n => n.toLowerCase() === "codes") ||
+        wb.SheetNames.find(n => n.includes("코드")) ||
+        wb.SheetNames[0];
+
+      const ws = wb.Sheets[sheetName];
+      if (!ws) {
+        alert("가져올 시트를 찾지 못했습니다. (Codes 또는 코드 시트 필요)");
+        return;
+      }
+
+      const aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+      if (!Array.isArray(aoa) || aoa.length < 2) {
+        alert("Codes/코드 시트에 데이터가 없습니다.");
+        return;
+      }
+
+      // 헤더 기반 매핑 (code, name, spec, unit, surcharge, convUnit, convFactor, note)
+      const header = aoa[0].map(x => String(x || "").trim());
+      const idx = (key) => header.findIndex(h => h.toLowerCase() === key.toLowerCase());
+
+      const iCode = idx("code");
+      const iName = idx("name");
+      const iSpec = idx("spec");
+      const iUnit = idx("unit");
+      const iSurcharge = idx("surcharge");
+      const iConvUnit = idx("convUnit");
+      const iConvFactor = idx("convFactor");
+      const iNote = idx("note");
+
+      if (iCode < 0) {
+        alert("Codes/코드 시트 헤더에 'code' 컬럼이 필요합니다.");
+        return;
+      }
+
+      const next = [];
+      for (let r = 1; r < aoa.length; r++) {
+        const row = aoa[r];
+        if (!row) continue;
+
+        const code = String(row[iCode] ?? "").trim();
+        if (!code) continue;
+
+        const obj = {
+          code,
+          name: iName >= 0 ? String(row[iName] ?? "") : "",
+          spec: iSpec >= 0 ? String(row[iSpec] ?? "") : "",
+          unit: iUnit >= 0 ? String(row[iUnit] ?? "") : "",
+          surcharge: iSurcharge >= 0 ? (row[iSurcharge] === "" || row[iSurcharge] == null ? null : Number(row[iSurcharge])) : null,
+          convUnit: iConvUnit >= 0 ? String(row[iConvUnit] ?? "") : "",
+          convFactor: iConvFactor >= 0 ? (row[iConvFactor] === "" || row[iConvFactor] == null ? null : Number(row[iConvFactor])) : null,
+          note: iNote >= 0 ? String(row[iNote] ?? "") : "",
+        };
+
+        // 숫자 NaN 정리
+        if (!Number.isFinite(obj.surcharge)) obj.surcharge = (obj.surcharge == null ? null : null);
+        if (!Number.isFinite(obj.convFactor)) obj.convFactor = (obj.convFactor == null ? null : null);
+
+        next.push(obj);
+      }
+
+      if (!next.length) {
+        alert("가져올 코드 데이터가 없습니다.");
+        return;
+      }
+
+      state.codeMaster = next;
+      saveState();
+      render();
+
+      alert(`코드 ${next.length}개를 가져왔습니다. (시트: ${sheetName})`);
+    } catch (err) {
+      console.error(err);
+      alert("가져오기 실패: 파일 형식/시트 구성을 확인해 주세요.");
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
+
+  /* ============================
+   ✅ Top Buttons (bind once)
+   - 요소가 아직 없으면 raf2로 재시도
+============================ */
+let __topButtonsBound = false;
+
+function bindTopButtonsOnce(forceRetry = false) {
+  if (__topButtonsBound && !forceRetry) return;
+
+  const btnHelp = document.getElementById("btnHelp");
+
+  // ✅ 상단 프로젝트 버튼
+  const btnProject = document.getElementById("btnProject");
+
+  // ✅ 모달 버튼들
+  const btnProjectAdd = document.getElementById("btnProjectAdd");
+  const btnProjectDelete = document.getElementById("btnProjectDelete");
+  const btnProjectSave = document.getElementById("btnProjectSave");
+  const btnProjectClose = document.getElementById("btnProjectClose");
+  const btnProjectOpen = document.getElementById("btnProjectOpen");
+
+  // ✅ 상단 주요 기능 버튼들
+  const btnOpenPicker = document.getElementById("btnOpenPicker");
+  const btnExport = document.getElementById("btnExport");
+  const btnReset = document.getElementById("btnReset");
+  const fileImport = document.getElementById("fileImport");
+
+  // ✅ DOM 아직 안 잡히면 다음 프레임 재시도
+    const needRetry =
+    !btnProject || !btnProjectAdd || !btnProjectDelete || !btnProjectSave || !btnProjectClose || !btnProjectOpen ||
+    !btnOpenPicker || !btnExport || !btnReset || !fileImport;
+
+
+  if (needRetry) {
+    raf2(() => bindTopButtonsOnce(true));
+    return;
+  }
+
+  __topButtonsBound = true;
+
+  // 도움말
+  if (btnHelp) btnHelp.onclick = openHelpWindow;
+
+  // ✅ 상단 “프로젝트 열기” → 모달 열기
+  btnProject.onclick = openProjectModal;
+
+  // ✅ 모달 버튼 바인딩
+  btnProjectAdd.onclick = createProject;
+  btnProjectDelete.onclick = deleteSelectedProjectInModal;
+  btnProjectSave.onclick = saveProjectsFromModal;
+  btnProjectClose.onclick = closeProjectModal;
+  btnProjectOpen.onclick = openSelectedProjectFromModal;
+
+    // ✅ 코드선택 버튼 연결 (Ctrl+. / 버튼 모두 이걸 타게 됨)
+  if (btnOpenPicker) {
+    btnOpenPicker.onclick = openPickerWindow;
+  }
+
+
+  // 내보내기/가져오기/초기화
+btnExport.onclick = () => openExportModal();
+
+
+  fileImport.onchange = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    importFromExcelFile(f);
+    e.target.value = "";
+  };
+
+  btnReset.onclick = () => {
+    if (!activeProjectId) return;
+    if (!confirm("현재 프로젝트를 초기화할까요?")) return;
+    state = deepClone(DEFAULT_STATE);
+    saveState();
+    render();
+  };
+
+  // backdrop 클릭 닫기
+  const modal = document.getElementById("projectModal");
+  if (modal && !modal.__backdropBound) {
+    modal.__backdropBound = true;
+    modal.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute("data-close") === "1") closeProjectModal();
+    });
+  }
+
+  // ESC로 모달 닫기(1회만)
+  if (!window.__finEscBound) {
+    window.__finEscBound = true;
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const m = document.getElementById("projectModal");
+      if (!m) return;
+      if (m.getAttribute("aria-hidden") === "false") closeProjectModal();
+    });
+  }
+}
+
+
+   /* ============================
+   ✅ Code Picker Window (picker.html + picker.js 연동)
+   - Ctrl+. 또는 버튼으로 열기
+   - INIT 메시지로 codes 전달
+   - picker → INSERT_SELECTED 수신 후 calc/code 셀에 반영
+============================ */
+
+let __pickerWin = null;
+
+function getActiveCalcFocusRow(tabId) {
+  const ae = document.activeElement;
+  if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
+    return clamp(Number(ae.dataset.row || 0), 0, 999999);
+  }
+  return 0;
+}
+
+function openPickerWindow() {
+  // code 탭에서는 의미가 애매하니(필요하면 허용 가능) 우선 산출탭에서만 사용 권장
+  const tabId = state.activeTab;
+
+  const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+  if (!isCalc) {
+    alert("코드 선택은 산출 탭(철골/부자재/동바리)에서 사용해 주세요.");
+    return;
+  }
+
+  const focusRow = getActiveCalcFocusRow(tabId);
+
+  // picker.html 열기 (같은 폴더에 있어야 함)
+  const w = window.open("picker.html", "FIN_PICKER", "width=1100,height=820");
+  if (!w) {
+    alert("팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도해 주세요.");
+    return;
+  }
+  __pickerWin = w;
+
+  // ✅ picker.js가 INIT을 받을 때까지 약간 딜레이/재시도
+  const payload = {
+    type: "INIT",
+    originTab: tabId,
+    focusRow,
+    codes: Array.isArray(state.codeMaster) ? state.codeMaster.map(x => ({
+      code: x.code || "",
+      name: x.name || "",
+      spec: x.spec || "",
+      unit: x.unit || "",
+      surcharge: (x.surcharge ?? ""),
+      conv_unit: (x.convUnit || ""),
+      conv_factor: (x.convFactor ?? ""),
+    })) : []
+  };
+
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries++;
+    try {
+      w.postMessage(payload, window.location.origin);
+    } catch {}
+    if (tries >= 20) clearInterval(timer);
+  }, 120);
+}
+
+// ✅ picker → 메인으로 삽입 요청 수신
+if (!window.__finPickerMsgBound) {
+  window.__finPickerMsgBound = true;
 
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;
     const msg = event.data;
     if (!msg || typeof msg !== "object") return;
 
-    if (msg.type === "INSERT_SELECTED") {
-      const originTab = msg.originTab || state.activeTab;
-      const focusRow = Number(msg.focusRow || 0);
-      const selectedCodes = Array.isArray(msg.selectedCodes) ? msg.selectedCodes : [];
-      if (!selectedCodes.length) return;
+    // picker가 닫힐 때 알림(선택사항)
+    if (msg.type === "CLOSE_PICKER") {
+      try { __pickerWin = null; } catch {}
+      return;
+    }
 
-      state.activeTab = originTab;
+        if (msg.type === "INSERT_SELECTED") {
+      const tabId = msg.originTab;
+      const focusRow = Number(msg.focusRow || 0);
+      const codes = Array.isArray(msg.selectedCodes) ? msg.selectedCodes : [];
+      if (!codes.length) return;
+
+      const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+      if (!isCalc) return;
+
+      const bucket = state[tabId];
+      const sec = bucket.sections[bucket.activeSection];
+
+      // ✅ "현재 행 아래"에 삽입
+      const insertPos = clamp(focusRow + 1, 0, sec.rows.length);
+
+      // ✅ 선택 개수만큼 새 행 끼워넣기
+      const newRows = Array.from({ length: codes.length }, () => defaultCalcRow());
+      sec.rows.splice(insertPos, 0, ...newRows);
+
+      // ✅ 새로 생긴 행에 코드 채우기
+      codes.forEach((c, i) => {
+        const r = sec.rows[insertPos + i];
+        if (!r) return;
+        r.code = String(c || "").trim();
+      });
+
+      recomputeSection(tabId);
       saveState();
       render();
 
       raf2(() => {
-        updateScrollHeights();
         const target = document.querySelector(
-          `input[data-grid="calc"][data-tab="${originTab}"][data-row="${focusRow}"][data-col="0"]`
+          `input[data-grid="calc"][data-tab="${tabId}"][data-row="${insertPos}"][data-col="${CALC_COL_INDEX.code}"]`
         );
-        if (target) safeFocus(target);
-
-        if (selectedCodes.length > 1) window.__FIN_INSERT_CODES__?.(selectedCodes);
-        else window.__FIN_INSERT_CODE__?.(selectedCodes[0]);
+        safeFocus(target);
+        ensureScrollIntoView(target);
       });
-      return;
+
+      return; // ✅ 다른 메시지 타입으로 흐르지 않게(안전)
     }
+  }); // ✅ window.addEventListener("message", ...) 닫기
+} // ✅ if (!window.__finPickerMsgBound) 닫기
 
-    if (msg.type === "UPDATE_CODES") {
-      const incoming = Array.isArray(msg.codes) ? msg.codes : [];
 
-      state.codeMaster = incoming
-        .map(r => ({
-          code: (r.code ?? "").toString().trim(),
-          name: (r.name ?? "").toString(),
-          spec: (r.spec ?? "").toString(),
-          unit: (r.unit ?? "").toString(),
-          surcharge: (r.surcharge === "" || r.surcharge == null) ? null : Number(r.surcharge),
-          convUnit: (r.conv_unit ?? "").toString(),
-          convFactor: (r.conv_factor === "" || r.conv_factor == null) ? null : Number(r.conv_factor),
-          note: (r.note ?? "").toString(),
-        }))
-        .filter(x => x.code);
 
-      saveState();
-      render();
-      return;
-    }
 
-    if (msg.type === "CLOSE_PICKER") {
-      try { __pickerWin?.close(); } catch {}
-      __pickerWin = null;
-    }
+  /* ============================
+   ✅ Project UI (index.html v22 1:1 매칭)
+   - 상단: btnProject / activeProjectBadge
+   - 모달: projectModal / projectTbody
+   - 모달버튼: btnProjectAdd / btnProjectDelete / btnProjectSave / btnProjectClose / btnProjectOpen
+============================ */
+
+/** 상단 주요 버튼 잠금/해제 (코드선택/내보내기/가져오기/초기화) */
+function setTopButtonsEnabled(enabled) {
+  const btnOpen = document.getElementById("btnOpenPicker");
+  const btnExport = document.getElementById("btnExport");
+  const btnReset = document.getElementById("btnReset");
+  const fileImport = document.getElementById("fileImport");
+  const btnImportWrap = document.getElementById("btnImportWrap"); // label wrapper
+
+  if (btnOpen) btnOpen.disabled = !enabled;
+  if (btnExport) btnExport.disabled = !enabled;
+  if (btnReset) btnReset.disabled = !enabled;
+  if (fileImport) fileImport.disabled = !enabled;
+
+  // label wrapper는 disabled가 안 먹어서 스타일로 잠금
+  if (btnImportWrap) {
+    btnImportWrap.style.opacity = enabled ? "1" : "0.55";
+    btnImportWrap.style.pointerEvents = enabled ? "auto" : "none";
+    btnImportWrap.setAttribute("aria-disabled", enabled ? "false" : "true");
+  }
+
+  // 도움말은 항상 사용 가능
+  const help = document.getElementById("btnHelp");
+  if (help) help.disabled = false;
+}
+
+/** 상단 배지 + 버튼 잠금 상태 업데이트 */
+function updateProjectHeaderUI() {
+  const meta = projectIndex.projects.find(p => p.id === activeProjectId);
+  const badge = document.getElementById("activeProjectBadge");
+
+  if (badge) {
+    badge.textContent = meta ? `${meta.code || "-"} · ${meta.name || ""}` : "(미선택)";
+  }
+
+  setTopButtonsEnabled(!!meta);
+}
+
+/** 모달 열기 */
+function openProjectModal() {
+  const modal = document.getElementById("projectModal");
+  if (!modal) return;
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+
+  // ✅ 테이블 렌더
+  renderProjectTable();
+
+  // ✅ 선택 상태 기본값(없으면 active 선택)
+  if (!__selectedProjectIdInModal && activeProjectId) {
+    __selectedProjectIdInModal = activeProjectId;
+    markSelectedRow(__selectedProjectIdInModal);
+  }
+}
+
+/** 모달 닫기 */
+function closeProjectModal() {
+  const modal = document.getElementById("projectModal");
+  if (!modal) return;
+
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+}
+
+/** 모달 내부 선택 프로젝트 id */
+let __selectedProjectIdInModal = "";
+
+/** 선택 표시 */
+function markSelectedRow(pid) {
+  document.querySelectorAll("#projectTbody tr").forEach(tr => {
+    tr.classList.toggle("selected", tr.dataset.pid === pid);
+  });
+}
+
+/** 프로젝트 테이블 렌더 */
+function renderProjectTable() {
+  const tbody = document.getElementById("projectTbody");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  const items = projectIndex.projects
+    .slice()
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+  if (!items.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 3;
+    td.style.padding = "14px";
+    td.style.color = "rgba(90,90,97,1)";
+    td.style.fontWeight = "700";
+    td.textContent = "프로젝트가 없습니다. [추가]로 생성하세요.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  items.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.dataset.pid = p.id;
+
+    // activeProjectId와 별개로 "모달 선택" 기준으로 하이라이트
+    const isSelected = (p.id === (__selectedProjectIdInModal || activeProjectId));
+    if (isSelected) tr.classList.add("selected");
+
+    const tdCode = document.createElement("td");
+    const tdName = document.createElement("td");
+    const tdDate = document.createElement("td");
+
+    const inpCode = document.createElement("input");
+    inpCode.className = "cell";
+    inpCode.value = p.code || "";
+    inpCode.placeholder = "공사코드";
+
+    const inpName = document.createElement("input");
+    inpName.className = "cell";
+    inpName.value = p.name || "";
+    inpName.placeholder = "프로젝트명";
+
+    // 입력 값은 meta에 즉시 반영(저장은 '저장' 버튼)
+    inpCode.addEventListener("input", () => { p.code = inpCode.value; });
+    inpName.addEventListener("input", () => { p.name = inpName.value; });
+
+    // 클릭하면 선택 표시
+    const pick = () => {
+      __selectedProjectIdInModal = p.id;
+      markSelectedRow(p.id);
+    };
+    tr.addEventListener("click", pick);
+    inpCode.addEventListener("click", (e) => { e.stopPropagation(); pick(); });
+    inpName.addEventListener("click", (e) => { e.stopPropagation(); pick(); });
+
+    tdCode.appendChild(inpCode);
+    tdName.appendChild(inpName);
+
+    const d = new Date(p.createdAt || p.updatedAt || Date.now());
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    tdDate.textContent = `${yyyy}-${mm}-${dd}`;
+
+    tr.appendChild(tdCode);
+    tr.appendChild(tdName);
+    tr.appendChild(tdDate);
+
+    tbody.appendChild(tr);
+  });
+}
+
+/** 프로젝트 추가 */
+function createProject() {
+  const pid = genId();
+  const meta = normalizeProjectMeta({ id: pid, name: "새 프로젝트", code: "" });
+
+  projectIndex.projects.push(meta);
+  saveProjectIndex(projectIndex);
+
+  // 신규 기본 상태 저장
+  ProjectStore.saveProjectState(pid, deepClone(DEFAULT_STATE));
+
+  // 모달에서 바로 선택
+  __selectedProjectIdInModal = pid;
+
+  renderProjectTable();
+  markSelectedRow(pid);
+}
+
+/** 모달에서 프로젝트 저장 */
+function saveProjectsFromModal() {
+  projectIndex.projects.forEach(p => {
+    p.name = (p.name || "").trim() || "새 프로젝트";
+    p.code = (p.code || "").trim();
+    p.updatedAt = Date.now();
   });
 
-  window.__FIN_GET_CODEMASTER__ = () => state.codeMaster || [];
-  window.__FIN_INSERT_CODE__ = (code) => { insertCodeToActiveCell(code); };
+  saveProjectIndex(projectIndex);
+  renderProjectTable();
+  updateProjectHeaderUI();
+}
 
-  window.__FIN_INSERT_CODES__ = (codes) => {
-    const a = document.activeElement;
-    if (!(a instanceof HTMLInputElement) || a.dataset.grid !== "calc") return;
+/** 모달에서 선택 프로젝트 삭제 */
+function deleteSelectedProjectInModal() {
+  const pid = __selectedProjectIdInModal || activeProjectId;
+  if (!pid) return alert("삭제할 프로젝트를 선택해 주세요.");
 
-    const tabId = a.dataset.tab;
-    const startRowRaw = Number(a.dataset.row);
-    const col = Number(a.dataset.col);
+  const meta = projectIndex.projects.find(p => p.id === pid);
+  if (!confirm(`프로젝트를 삭제할까요?\n${meta?.name || ""} (${meta?.code || "-"})`)) return;
 
-    const bucket = state[tabId];
-    const sec = bucket.sections[bucket.activeSection];
-
-    const startRow = clamp(startRowRaw, 0, sec.rows.length);
-    const insertRows = codes.map(c => {
-      const r = defaultCalcRow();
-      r.code = String(c || "").toUpperCase().trim();
-      return r;
-    });
-
-    sec.rows.splice(startRow, 0, ...insertRows);
-
-    recomputeSection(tabId);
-    saveState();
-    render();
-
-    raf2(() => {
-      updateScrollHeights();
-      const target = document.querySelector(
-        `input[data-grid="calc"][data-tab="${tabId}"][data-row="${startRow}"][data-col="${col}"]`
-      );
-      if (target) safeFocus(target);
-      ensureScrollIntoView();
-    });
-  };
-
-  function insertCodeToActiveCell(code) {
-    const a = document.activeElement;
-    if (!(a instanceof HTMLInputElement) || a.dataset.grid !== "calc") return;
-
-    const tabId = a.dataset.tab;
-    const row = Number(a.dataset.row);
-
-    const bucket = state[tabId];
-    const sec = bucket.sections[bucket.activeSection];
-    if (!sec.rows[row]) return;
-
-    sec.rows[row].code = String(code || "").toUpperCase().trim();
-    recomputeSection(tabId);
-    saveState();
-    render();
-
-    raf2(() => {
-      updateScrollHeights();
-      const next = document.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${row}"][data-col="4"]`);
-      if (next) safeFocus(next);
-      ensureScrollIntoView();
-    });
+  // active 삭제면 active 해제
+  if (pid === activeProjectId) {
+    try { saveProjectState(activeProjectId); } catch {}
+    activeProjectId = "";
+    ProjectStore.saveActiveId("");
   }
 
-  /***************
-   * ✅ Excel Modal Styles (app.js에서 자동 주입)
-   ***************/
-  function ensureExcelModalStyles() {
-    if (document.getElementById("excel-modal-style")) return;
+  projectIndex.projects = projectIndex.projects.filter(p => p.id !== pid);
+  saveProjectIndex(projectIndex);
+  ProjectStore.deleteProject(pid);
 
-    const css = `
-      .excel-modal-backdrop{
-        position:fixed; inset:0;
-        background: rgba(0,0,0,.25);
-        display:flex; align-items:center; justify-content:center;
-        z-index: 99999;
-        padding:16px;
-      }
-      .excel-modal{
-        width:min(520px, 96vw);
-        background: rgba(255,250,240,.96);
-        border: 1px solid rgba(0,0,0,.10);
-        border-radius: 18px;
-        box-shadow: 0 24px 60px rgba(0,0,0,.18);
-        overflow:hidden;
-      }
-      .excel-modal-head{
-        padding:14px 16px;
-        border-bottom:1px solid rgba(0,0,0,.08);
-        display:flex; align-items:center; justify-content:space-between; gap:12px;
-      }
-      .excel-modal-title{ font-weight:900; }
-      .excel-modal-body{ padding:14px 16px; }
-      .excel-modal-foot{
-        padding:14px 16px;
-        border-top:1px solid rgba(0,0,0,.08);
-        display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;
-      }
-      .excel-modal-list{ display:flex; flex-direction:column; gap:10px; }
-      .excel-modal-item{
-        display:flex; align-items:center; justify-content:space-between; gap:12px;
-        padding:10px 12px;
-        background: rgba(255,255,255,.55);
-        border: 1px solid rgba(0,0,0,.10);
-        border-radius: 14px;
-      }
-      .excel-modal-item label{ font-weight:900; color:#1d1d1f; }
-      .excel-modal-item small{ color: rgba(90,90,97,1); font-weight:700; }
-      .excel-modal-item input[type="checkbox"]{ width:18px; height:18px; }
-    `;
-    const style = document.createElement("style");
-    style.id = "excel-modal-style";
-    style.textContent = css;
-    document.head.appendChild(style);
+  __selectedProjectIdInModal = "";
+
+  // 프로젝트가 0개면 하나 생성
+  if (projectIndex.projects.length === 0) {
+    const nid = genId();
+    const m = normalizeProjectMeta({ id: nid, name: "프로젝트 1", code: "" });
+    projectIndex.projects.push(m);
+    saveProjectIndex(projectIndex);
+    ProjectStore.saveProjectState(nid, deepClone(DEFAULT_STATE));
   }
 
-  /***************
-   * ✅ Excel Export Modal + Export/Import 구현
-   *   - 임시 양식으로 테스트 가능
-   *   - 나중에 사용자 엑셀 양식 오면 매핑만 변경
-   ***************/
-  function openExcelExportModal() {
-    ensureExcelModalStyles();
-
-    // 기존 모달 제거
-    document.querySelectorAll(".excel-modal-backdrop").forEach(n => n.remove());
-
-    const selections = {
-      code: true,
-      steel: true,
-      steel_sub: false,
-      support: false,
-    };
-
-    const makeItem = (key, title, desc) => {
-      const chk = document.createElement("input");
-      chk.type = "checkbox";
-      chk.checked = !!selections[key];
-      chk.addEventListener("change", () => selections[key] = chk.checked);
-
-      return el("div", { class: "excel-modal-item" }, [
-        el("div", {}, [
-          el("label", {}, [title]),
-          el("div", {}, [el("small", {}, [desc])]),
-        ]),
-        chk
-      ]);
-    };
-
-    const backdrop = el("div", { class: "excel-modal-backdrop" }, []);
-    const modal = el("div", { class: "excel-modal" }, []);
-
-    const head = el("div", { class: "excel-modal-head" }, [
-      el("div", { class: "excel-modal-title" }, ["엑셀 내보내기"]),
-      el("button", { class: "smallbtn", onclick: () => backdrop.remove() }, ["닫기"])
-    ]);
-
-    const body = el("div", { class: "excel-modal-body" }, [
-      el("div", { class: "excel-modal-list" }, [
-        makeItem("code", "코드", "Codes 시트로 codeMaster를 내보냅니다."),
-        makeItem("steel", "철골", "Steel 시트로 산출/변수를 내보냅니다."),
-        makeItem("steel_sub", "철골_부자재", "Steel_Sub 시트로 산출/변수를 내보냅니다."),
-        makeItem("support", "구조이기/동바리", "Support 시트로 산출/변수를 내보냅니다."),
-      ])
-    ]);
-
-    const foot = el("div", { class: "excel-modal-foot" }, [
-      el("button", {
-        class: "btn ghost",
-        onclick: () => {
-          selections.code = selections.steel = selections.steel_sub = selections.support = true;
-          backdrop.remove();
-          openExcelExportModal();
-        }
-      }, ["전체선택"]),
-      el("button", {
-        class: "btn",
-        onclick: () => {
-          const any = Object.values(selections).some(Boolean);
-          if (!any) return alert("내보낼 항목을 하나 이상 선택해 주세요.");
-          try {
-            exportSelectedToExcel(selections);
-            backdrop.remove();
-          } catch (err) {
-            console.error(err);
-            alert("엑셀 내보내기 실패: XLSX 라이브러리 로드 여부 / 브라우저 다운로드 권한을 확인해 주세요.");
-          }
-        }
-      }, ["내보내기(Excel)"])
-    ]);
-
-    modal.appendChild(head);
-    modal.appendChild(body);
-    modal.appendChild(foot);
-
-    backdrop.addEventListener("click", (e) => {
-      if (e.target === backdrop) backdrop.remove();
-    });
-
-    backdrop.appendChild(modal);
-    document.body.appendChild(backdrop);
+  // active가 없으면 첫 프로젝트로
+  if (!activeProjectId) {
+    activeProjectId = projectIndex.projects[0].id;
+    ProjectStore.saveActiveId(activeProjectId);
+    state = loadProjectState(activeProjectId);
   }
 
-  function exportSelectedToExcel(sel) {
-    if (typeof XLSX === "undefined" || !XLSX?.utils) {
-      throw new Error("XLSX not loaded");
-    }
-
-    // 최신 계산 반영 (현재 탭만이라도)
-    if (state.activeTab === "steel" || state.activeTab === "steel_sub" || state.activeTab === "support") {
-      recomputeSection(state.activeTab);
-    }
-
-    const wb = XLSX.utils.book_new();
-
-    if (sel.code) {
-      const rows = (state.codeMaster || []).map(r => ({
-        code: r.code ?? "",
-        name: r.name ?? "",
-        spec: r.spec ?? "",
-        unit: r.unit ?? "",
-        surcharge: r.surcharge ?? "",
-        convUnit: r.convUnit ?? "",
-        convFactor: r.convFactor ?? "",
-        note: r.note ?? "",
-      }));
-      const ws = XLSX.utils.json_to_sheet(rows, { skipHeader: false });
-      XLSX.utils.book_append_sheet(wb, ws, "Codes");
-    }
-
-    if (sel.steel) appendCalcTabSheet(wb, "steel", "Steel");
-    if (sel.steel_sub) appendCalcTabSheet(wb, "steel_sub", "Steel_Sub");
-    if (sel.support) appendCalcTabSheet(wb, "support", "Support");
-
-    const fileName = `FIN_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-  }
-
-  function appendCalcTabSheet(wb, tabId, sheetName) {
-    const bucket = state[tabId];
-    if (!bucket || !Array.isArray(bucket.sections)) return;
-
-    const prev = bucket.activeSection;
-    const out = [];
-
-    for (let sIdx = 0; sIdx < bucket.sections.length; sIdx++) {
-      bucket.activeSection = sIdx;
-      recomputeSection(tabId);
-
-      const sec = bucket.sections[sIdx];
-      const sectionName = sec.name ?? `구분 ${sIdx + 1}`;
-      const count = sec.count ?? "";
-
-      // 변수 덤프
-      for (const v of (sec.vars || [])) {
-        if (!v.key && !v.expr && !v.note) continue;
-        out.push({
-          type: "VAR",
-          sectionName,
-          count,
-          key: v.key ?? "",
-          expr: v.expr ?? "",
-          value: v.value ?? 0,
-          note: v.note ?? "",
-        });
-      }
-
-      // 산출행 덤프
-      (sec.rows || []).forEach((r, i) => {
-        const hasAny =
-          (r.code || r.formula || r.value || r.converted || r.name || r.spec || r.unit || r.surchargePct != null);
-        if (!hasAny) return;
-
-        out.push({
-          type: "ROW",
-          sectionName,
-          count,
-          no: i + 1,
-          code: r.code ?? "",
-          name: r.name ?? "",
-          spec: r.spec ?? "",
-          unit: r.unit ?? "",
-          formula: r.formula ?? "",
-          value: r.value ?? 0,
-          surchargePct: r.surchargePct ?? "",
-          convUnit: r.convUnit ?? "",
-          convFactor: r.convFactor ?? "",
-          converted: r.converted ?? 0,
-          note: r.note ?? "",
-        });
-      });
-    }
-
-    bucket.activeSection = prev;
-
-    const ws = XLSX.utils.json_to_sheet(out, { skipHeader: false });
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  }
-
-  async function importExcelToCodes(file) {
-    if (typeof XLSX === "undefined" || !XLSX?.read) {
-      throw new Error("XLSX not loaded");
-    }
-
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array" });
-
-    // 시트명 유연 처리
-    const sheetNames = wb.SheetNames || [];
-    const pickSheet = (candidates) => {
-      for (const cand of candidates) {
-        const hit = sheetNames.find(n => String(n).trim().toLowerCase() === String(cand).trim().toLowerCase());
-        if (hit) return hit;
-      }
-      return null;
-    };
-
-    const sn =
-      pickSheet(["Codes", "Code", "코드", "CODE"]) ||
-      (sheetNames[0] || null);
-
-    if (!sn) throw new Error("No sheet");
-    const ws = wb.Sheets[sn];
-    if (!ws) throw new Error("Sheet missing");
-
-    // 헤더 기반
-    const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-    // 헤더 alias (임시)
-    const get = (row, keys) => {
-      for (const k of keys) {
-        if (row[k] !== undefined) return row[k];
-      }
-      return "";
-    };
-
-    const next = [];
-    for (const row of json) {
-      const code = String(get(row, ["code", "Code", "CODE", "코드"])).trim();
-      if (!code) continue;
-
-      const name = String(get(row, ["name", "품명", "Product name", "품명\n(Product name)"]));
-      const spec = String(get(row, ["spec", "규격", "Specifications", "규격\n(Specifications)"]));
-      const unit = String(get(row, ["unit", "단위", "Unit", "단위\n(unit)"]));
-      const note = String(get(row, ["note", "비고", "Note", "비고\n(Note)"]));
-
-      const surchargeRaw = get(row, ["surcharge", "할증", "할증\n(surcharge)"]);
-      const convUnit = String(get(row, ["convUnit", "환산단위", "Conversion unit", "환산단위\n(Conversion unit)"]));
-      const convFactorRaw = get(row, ["convFactor", "환산계수", "Conversion factor", "환산계수\n(Conversion factor)"]);
-
-      const surcharge = (String(surchargeRaw).trim() === "") ? null : Number(surchargeRaw);
-      const convFactor = (String(convFactorRaw).trim() === "") ? null : Number(convFactorRaw);
-
-      next.push({
-        code: code.toUpperCase(),
-        name,
-        spec,
-        unit,
-        surcharge: Number.isFinite(surcharge) ? surcharge : null,
-        convUnit,
-        convFactor: Number.isFinite(convFactor) ? convFactor : null,
-        note,
-      });
-    }
-
-    if (!next.length) {
-      throw new Error("No valid rows");
-    }
-
-    state.codeMaster = next;
-    saveState();
-  }
-
-  function bindTopButtons() {
-    const btnOpen = document.getElementById("btnOpenPicker");
-    const btnExport = document.getElementById("btnExport");
-    const btnReset = document.getElementById("btnReset");
-    const fileImport = document.getElementById("fileImport");
-
-    if (btnOpen) btnOpen.onclick = openCodePicker;
-
-    // ✅ v13: Excel 내보내기 (모달)
-    if (btnExport) btnExport.onclick = () => {
-      openExcelExportModal();
-    };
-
-    // ✅ v13: Excel 가져오기 (Codes 시트 → codeMaster 반영)
-    if (fileImport) fileImport.onchange = async (e) => {
-      const f = e.target.files?.[0];
-      if (!f) return;
-
-      try {
-        await importExcelToCodes(f);
-        alert("가져오기(Excel) 완료: codeMaster(코드)가 갱신되었습니다.");
-        render(); // recompute/refresh
-      } catch (err) {
-        console.error(err);
-        alert("가져오기(Excel) 실패: 현재는 'Codes(또는 코드)' 시트를 임시 양식으로 읽습니다.\n(양식 제공 후 매핑을 확정하면 안정적으로 동작합니다.)");
-      } finally {
-        e.target.value = "";
-      }
-    };
-
-    if (btnReset) btnReset.onclick = () => {
-      if (!confirm("정말 초기화할까요? (로컬 저장 데이터가 삭제됩니다)")) return;
-      localStorage.removeItem(LS_KEY);
-      state = loadState();
-      render();
-    };
-  }
-
-  function applyPanelStickyTop() {
-    const root = document.documentElement;
-    const isCalcTab = (state.activeTab === "steel" || state.activeTab === "steel_sub" || state.activeTab === "support");
-    root.style.setProperty("--panelStickyTop", isCalcTab ? "var(--stickyWithTopSplitTop)" : "var(--stickyBaseTop)");
-  }
-
-  function render() {
-    renderTabs();
-    clear($view);
-
-    let content = null;
-
-    if (state.activeTab === "code") content = renderCodeTab();
-    else if (state.activeTab === "steel") content = renderCalcTab("steel", "철골");
-    else if (state.activeTab === "steel_sub") content = renderCalcTab("steel_sub", "철골_부자재");
-    else if (state.activeTab === "support") content = renderCalcTab("support", "구조이기/동바리");
-    else if (state.activeTab === "steel_sum") content = renderSummaryTabByCodeOrder("steel", "철골_집계");
-    else if (state.activeTab === "support_sum") content = renderSummaryTabByCodeOrder("support", "구조이기/동바리_집계");
-
-    $view.appendChild(content);
-    bindTopButtons();
-
-    raf2(() => {
-      updateStickyVars();
-      applyPanelStickyTop();
-      updateScrollHeights();
-    });
-  }
-
-  function renderSummaryTabByCodeOrder(srcTabId, title) {
-    const bucket = state[srcTabId];
-
-    const orderMap = new Map();
-    (state.codeMaster || []).forEach((cm, idx) => {
-      const c = String(cm.code || "").trim().toUpperCase();
-      if (c) orderMap.set(c, idx);
-    });
-
-    const map = new Map();
-    const prev = bucket.activeSection;
-
-    for (let sIdx = 0; sIdx < bucket.sections.length; sIdx++) {
-      bucket.activeSection = sIdx;
-      recomputeSection(srcTabId);
-
-      const sec = bucket.sections[sIdx];
-
-      let countMul = 1;
-      const rawCount = (sec.count ?? "").toString().trim();
-      if (rawCount === "") countMul = 1;
-      else {
-        const n = Number(rawCount);
-        countMul = Number.isFinite(n) ? n : 1;
-      }
-
-      for (const r of sec.rows) {
-        const code = String(r.code || "").trim().toUpperCase();
-        if (!code) continue;
-
-        const name = r.name || "";
-        const spec = r.spec || "";
-
-        const baseQty = (Number(r.value) || 0) * countMul;
-        const mul = (Number(r.surchargeMul) || 1);
-        const afterQty = (Number(r.value) || 0) * mul * countMul;
-
-        const convUnit = String(r.convUnit || "").trim();
-        const convFactorNum = Number(r.convFactor);
-        const hasConv = convUnit !== "" && Number.isFinite(convFactorNum) && convFactorNum !== 0;
-
-        const unitShown = hasConv ? convUnit : (r.unit || "");
-        const preShown  = hasConv ? (baseQty  * convFactorNum) : baseQty;
-        const postShown = hasConv ? (afterQty * convFactorNum) : afterQty;
-
-        const pct =
-          (r.surchargePct == null || r.surchargePct === "" || !Number.isFinite(Number(r.surchargePct)))
-            ? null
-            : Number(r.surchargePct);
-
-        if (!map.has(code)) {
-          map.set(code, {
-            code,
-            name,
-            spec,
-            unit: unitShown,
-            pre: 0,
-            post: 0,
-            pctSet: new Set(),
-            unitSet: new Set(),
-          });
-        }
-
-        const agg = map.get(code);
-        agg.pre += preShown;
-        agg.post += postShown;
-        agg.unitSet.add(unitShown || "");
-
-        if (pct == null) agg.pctSet.add("__NULL__");
-        else agg.pctSet.add(String(pct));
-      }
-    }
-
-    bucket.activeSection = prev;
-    saveState();
-
-    const items = [...map.values()].sort((a, b) => {
-      const ai = orderMap.has(a.code) ? orderMap.get(a.code) : Number.POSITIVE_INFINITY;
-      const bi = orderMap.has(b.code) ? orderMap.get(b.code) : Number.POSITIVE_INFINITY;
-      if (ai !== bi) return ai - bi;
-      return a.code.localeCompare(b.code);
-    });
-
-    const panelHeader = el("div", { class: "panel-header sticky-head", dataset: { sticky: "panel" } }, [
-      el("div", {}, [
-        el("div", { class: "panel-title" }, [title]),
-        el("div", { class: "panel-desc" }, [
-          "코드별 집계: (구분 개소 반영) · 환산단위/계수 있으면 환산후수량 기준으로 할증전/할증후 합산"
-        ])
-      ])
-    ]);
-
-    return el("div", { class: "panel" }, [
-      panelHeader,
-      el("div", { class: "table-wrap" }, [
-        el("table", {}, [
-          el("thead", {}, [
-            el("tr", {}, [
-              el("th", {}, ["코드"]),
-              el("th", {}, ["품명"]),
-              el("th", {}, ["규격"]),
-              el("th", {}, ["단위"]),
-              el("th", {}, ["할증전수량"]),
-              el("th", {}, ["할증(%)"]),
-              el("th", {}, ["할증후수량"]),
-            ])
-          ]),
-          el("tbody", {}, [
-            ...items.map(x => {
-              const unitText = (x.unitSet && x.unitSet.size > 1) ? "혼합" : (x.unit || "");
-
-              const pctText = (() => {
-                const s = x.pctSet;
-                if (s.size === 0) return "";
-                if (s.size === 1) {
-                  const only = [...s][0];
-                  if (only === "__NULL__") return "";
-                  return only;
-                }
-                return "혼합";
-              })();
-
-              return el("tr", {}, [
-                el("td", {}, [x.code]),
-                el("td", {}, [x.name]),
-                el("td", {}, [x.spec]),
-                el("td", {}, [unitText]),
-                el("td", {}, [String(round4(x.pre))]),
-                el("td", {}, [pctText]),
-                el("td", {}, [String(round4(x.post))]),
-              ]);
-            }),
-          ])
-        ])
-      ])
-    ]);
-  }
-
-  function round4(n) {
-    const v = Number(n) || 0;
-    return Math.round(v * 10000) / 10000;
-  }
-
-  /***************
-   * Init
-   ***************/
+  renderProjectTable();
+  updateProjectHeaderUI();
   render();
-})();
+}
+
+/** 모달의 "선택 프로젝트 열기" */
+function openSelectedProjectFromModal() {
+  const pid = __selectedProjectIdInModal || activeProjectId;
+  if (!pid) return alert("열 프로젝트를 선택해 주세요.");
+
+  selectProject(pid);
+  closeProjectModal();
+}
+
+/** 프로젝트 선택(열기) */
+function selectProject(projectId) {
+  const meta = projectIndex.projects.find(p => p.id === projectId);
+  if (!meta) return alert("프로젝트를 찾을 수 없습니다.");
+
+  // 현재 프로젝트 저장
+  if (activeProjectId) saveProjectState(activeProjectId);
+
+  // 새 프로젝트 로드
+  state = loadProjectState(projectId);
+
+  activeProjectId = projectId;
+  ProjectStore.saveActiveId(activeProjectId);
+
+  updateProjectHeaderUI();
+  render();
+}
+
+/* ============================
+   ✅ Render Main (그대로 유지)
+============================ */
+function render() {
+  if (!$view) return;
+
+  applyTopSplitH();
+  renderTabs();
+
+  clear($view);
+
+  let node = null;
+  if (state.activeTab === "code") node = renderCodeTab();
+  else if (state.activeTab === "steel") node = renderCalcTab("steel", "철골");
+  else if (state.activeTab === "steel_sum") node = renderSummaryTab("steel", "철골_집계");
+  else if (state.activeTab === "steel_sub") node = renderCalcTab("steel_sub", "철골_부자재");
+  else if (state.activeTab === "support") node = renderCalcTab("support", "구조이기/동바리");
+  else if (state.activeTab === "support_sum") node = renderSummaryTab("support", "구조이기/동바리_집계");
+  else node = renderCodeTab();
+
+  $view.appendChild(node);
+
+  raf2(() => {
+    updateStickyVars();
+    applyPanelStickyTop();
+    updateViewFillHeight();
+    updateScrollHeights();
+
+    if (__pendingSectionFocus && __pendingSectionFocus.tabId === state.activeTab) {
+      const list = document.querySelector(`.section-list[data-tab="${__pendingSectionFocus.tabId}"]`);
+      const idx = __pendingSectionFocus.index;
+      const item = list?.querySelectorAll(".section-item")?.[idx];
+      raf2(() => safeFocus(item));
+      __pendingSectionFocus = null;
+    }
+  });
+}
+
+/* ============================
+   ✅ Init (DOM 준비 후 1회) — index.html v22 맞춤
+============================ */
+let __appInited = false;
+function initAppOnce() {
+  console.log("[FIN] initAppOnce fired");
+  if (__appInited) return;
+  __appInited = true;
+
+  // ✅ 1) 먼저 상단 버튼들(프로젝트 포함)을 bindTopButtonsOnce에서 바인딩
+  //    (여기 안에서 btnProject를 이미 getElementById로 잡고 onclick을 걸어줌)
+  try { bindTopButtonsOnce(); } catch (e) { console.warn(e); }
+
+  /* ============================
+     ✅ Shift+좌클릭 셀 블록지정 이벤트(1회 바인딩)
+     - input.cell만 대상
+     - ShiftKey면 anchor~target 사각형 블록 지정
+     ============================ */
+  if (!window.__finCellBlockBound) {
+    window.__finCellBlockBound = true;
+
+    document.addEventListener("mousedown", (e) => {
+      const t = e.target;
+      const input = t?.closest?.("input.cell");
+      if (!(input instanceof HTMLInputElement)) return;
+
+      // grid 없는 input(cell)도 있으니 최소 조건: class cell
+      // 필요하면 특정 grid만 적용 가능(아래 주석 참고)
+      // const g = input.dataset?.grid || "";
+      // if (!["calc","code","var"].includes(g)) return;
+
+      // Shift + 좌클릭 => 범위 지정
+      if (e.shiftKey) {
+        e.preventDefault();  // 텍스트 드래그 선택 방지
+        __handleShiftClickCell(input);
+        return;
+      }
+
+      // 일반 클릭 => 앵커 갱신(기존 블록 해제 포함)
+      __handleNormalClickCell(input);
+    }, true);
+
+    // Esc => 블록 해제(원하면 유지/삭제 가능)
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        __clearCellBlockSelection();
+      }
+    }, true);
+  }
+
+   /* ============================
+   ✅ Global Hotkeys (Ctrl+., Ctrl+B, Ctrl+F3)
+   - 프로젝트 선택된 상태에서만 작동
+   - input/textarea 편집중에는 일부 단축키 무시
+============================ */
+let __globalHotkeysBound = false;
+
+
+function bindGlobalHotkeysOnce() {
+  if (__globalHotkeysBound) return;
+  __globalHotkeysBound = true;
+
+  document.addEventListener("keydown", (e) => {
+    // 프로젝트 미선택이면 단축키 동작시키지 않음(버튼도 disabled 상태)
+    if (!activeProjectId) return;
+
+    const ae = document.activeElement;
+    const isEditing =
+      ae instanceof HTMLInputElement ||
+      ae instanceof HTMLTextAreaElement ||
+      (ae && ae.getAttribute && ae.getAttribute("contenteditable") === "true");
+
+    // -------------------------
+    // Ctrl + . : 코드 선택창
+    // -------------------------
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === ".") {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const btn = document.getElementById("btnOpenPicker");
+      // btn이 disabled가 아니면 클릭 트리거(기존 로직 그대로 활용)
+      if (btn && !btn.disabled) btn.click();
+      else alert("프로젝트를 먼저 선택(열기)해 주세요.");
+      return;
+    }
+
+    // -------------------------
+    // Ctrl + B : (현재 탭 기준) '다중선택' 토글
+    // - 기존 코드에서는 'Shift+B'로 구현돼 있으니
+    //   Ctrl+B도 같은 동작을 하도록 매핑
+    // -------------------------
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "b" || e.key === "B")) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const tabId = state.activeTab;
+  const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+  if (!isCalc) return;
+
+  // 현재 포커스된 calc 셀 row 기준
+  let curRow = 0;
+  if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
+    curRow = Number(ae.dataset.row || 0);
+  }
+
+  // ✅ Ctrl+B = 현재 행 선택 토글 (추가/해제)
+  __calcMultiToggleRow(tabId, curRow);
+  __applyCalcRowSelectionStyles(tabId);
+  return;
+}
+
+
+    // -------------------------
+    // Ctrl + F3 : 현재 행 아래 행 추가
+    // Shift + Ctrl + F3 : +10행
+    // - 코드탭(code) / 산출탭(steel/steel_sub/support) / 변수표(var) 모두 지원
+    // -------------------------
+    if (e.ctrlKey && e.key === "F3") {
+      // 입력 중이어도 행 추가는 허용(Excel 느낌)
+      e.preventDefault();
+      e.stopPropagation();
+
+      const n = e.shiftKey ? 10 : 1;
+      const tabId = state.activeTab;
+
+      // 1) 코드탭
+      if (tabId === "code") {
+        let insertAfter = null;
+        if (ae instanceof HTMLInputElement && ae.dataset.grid === "code") {
+          insertAfter = Number(ae.dataset.row || 0);
+        }
+        addCodeRows(n, insertAfter);
+        return;
+      }
+
+      // 2) 산출탭(steel/steel_sub/support)
+      if (tabId === "steel" || tabId === "steel_sub" || tabId === "support") {
+        let insertAfter = null;
+
+        // calc 셀에 포커스면 그 row 아래로
+        if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
+          insertAfter = Number(ae.dataset.row || 0);
+        }
+
+        addRows(tabId, n, insertAfter);
+        return;
+      }
+
+      // 3) 집계탭/기타에서는 무시
+      return;
+    }
+  }, true);
+}
+
+
+  // ✅ 2) initAppOnce에서 다시 btnProject를 “중복 바인딩”하지 않는다
+  //    (중복 바인딩은 필요 없고, TDZ 에러 원인이 됐음)
+
+  // ✅ 3) 모달 닫기(backdrop/ESC)는 1회만 걸리도록 가드 추가
+  const modal = document.getElementById("projectModal");
+  if (modal && !modal.__finModalBound) {
+    modal.__finModalBound = true;
+
+    modal.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute("data-close") === "1") closeProjectModal();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const m = document.getElementById("projectModal");
+      if (!m) return;
+      if (m.getAttribute("aria-hidden") === "false") closeProjectModal();
+    });
+  }
+
+    // ✅ 4) 최초 UI 반영
+  updateProjectHeaderUI();
+  render();
+
+  // ✅ 5) 전역 단축키 바인딩 (Ctrl+., Ctrl+B, Ctrl+F3 등)
+  bindGlobalHotkeysOnce();
+
+  raf2(() => {
+    updateStickyVars();
+    applyPanelStickyTop();
+    updateViewFillHeight();
+    updateScrollHeights();
+  });
+}
+
+
+
+// DOMContentLoaded 보장
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
+} else {
+  initAppOnce();
+}
+
+})(); // ✅ IIFE 닫기 (이게 없으면 Unexpected end of input 뜸)
+
+
+
+
