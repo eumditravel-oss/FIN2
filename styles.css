@@ -24,16 +24,25 @@
   --stickyWithTopSplitTop: 0px;
   --panelStickyTop: 0px;
 
+  /* ✅ top-split(구분/변수) 기본 높이 */
   --topSplitH: 190px;
+
+  /* ✅ 기본 스케일 */
+  --uiScale: .75;
 }
 
 *{ box-sizing:border-box; }
 html,body{ height:100%; }
 
+/* ✅ FIX: 바깥(페이지) 스크롤 절대 금지 */
+html, body{
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+}
+
 body{
   margin:0;
   height:100vh;
-  overflow:hidden;
   display:flex;
   flex-direction:column;
 
@@ -53,7 +62,7 @@ body{
   top: 0;
   z-index: 200;
   display:flex;
-  align-items:flex-start;
+  align-items:center; /* ✅ 로고/텍스트/버튼 세로 중앙 정렬 */
   justify-content:space-between;
   gap:16px;
   padding: 14px 16px;
@@ -85,18 +94,38 @@ body{
   box-shadow: 0 10px 20px rgba(240,138,36,.25);
   transform: skewX(-12deg);
 }
-.brand .title{
-  color: #222;
-}
+.brand .title{ color: #222; }
 .brand .title span{ color: #222; }
-
-/* 타이틀 텍스트 일부만 오렌지로 강조하고 싶으면(HTML 수정 없이) 전체에 톤만 줌 */
-.brand .title{
-  text-shadow: 0 1px 0 rgba(255,255,255,.8);
-}
+.brand .title{ text-shadow: 0 1px 0 rgba(255,255,255,.8); }
 .brand .sub{ color: var(--muted); font-size: 12px; }
 .brand .hint{ color: var(--muted); font-size: 12px; }
 .brand .hint b{ color: var(--accent); }
+
+/* ============================
+   ✅ Brand Logo Layout (로고 + 텍스트)
+============================ */
+.brand-main{
+  display:flex;
+  align-items:center;
+  gap:14px;          /* 로고 커지니까 간격도 살짝 증가 */
+}
+
+.brand-logo{
+  height: 42px;      /* ✅ 기존 대비 약 2.5배 */
+  width: auto;       /* ✅ 비율 유지 */
+  display: block;
+}
+
+.brand-text{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+/* ✅ 로고 사용하는 경우 title 앞 장식 제거(주황 블럭) */
+.brand-main .title::before{
+  display:none;
+}
 
 .actions{
   display:flex;
@@ -112,7 +141,7 @@ body{
   appearance:none;
   border:1px solid rgba(0,0,0,.12);
   background: rgba(255,255,255,.92);
-  border-radius: 10px;     /* ✅ 동그라미 제거 */
+  border-radius: 10px;
   cursor:pointer;
   font-weight: 900;
   color: var(--ink);
@@ -129,7 +158,7 @@ body{
 .btn{ padding: 10px 12px; }
 .smallbtn{
   padding: 8px 10px;
-  border-radius: 10px;     /* ✅ 동그라미 제거 */
+  border-radius: 10px;
   box-shadow: 0 12px 26px rgba(0,0,0,.12);
 }
 
@@ -142,13 +171,67 @@ body{
 .btn input[type="file"],
 .smallbtn input[type="file"]{ display:none; }
 
+/* =========================================================
+   ✅ Topbar 오른쪽 버튼(도움말 스타일로 통일)
+   ========================================================= */
+.topbar .actions .btn:not(.danger),
+.topbar .actions label.btn:not(.danger){
+  background: rgba(255,255,255,.70);
+  border: 2px solid rgba(240,138,36,.45);
+  color: var(--accent);
+}
+
+.topbar .actions .btn:not(.danger):hover,
+.topbar .actions label.btn:not(.danger):hover{
+  transform: translateY(-1px);
+  border-color: rgba(240,138,36,.70);
+  box-shadow: 0 14px 28px rgba(0,0,0,.12);
+}
+
+.topbar .actions .btn:not(.danger):active,
+.topbar .actions label.btn:not(.danger):active{
+  transform: translateY(0);
+  box-shadow: 0 8px 18px rgba(0,0,0,.10);
+}
+
+/* 초기화(danger)는 기존 유지(강조) */
+.topbar .actions .btn.danger,
+.topbar .actions label.btn.danger{
+  border: 1px solid rgba(180,0,0,.25);
+  background: rgba(255,230,230,.80);
+  color: var(--ink);
+}
+
+/* =========================================================
+   ✅ Topbar actions 버튼 높이/폰트/정렬 완전 통일
+   ========================================================= */
+.topbar .actions .btn,
+.topbar .actions label.btn{
+  height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  vertical-align: middle;
+}
+
+/* ✅ Topbar 버튼은 떠오르는 효과 제거(높이 착시 방지) */
+.topbar .actions .btn:hover,
+.topbar .actions label.btn:hover{
+  transform: none;
+}
+
 /* ===== Tabs (캡슐 → 텍스트 + 밑줄 강조 스타일) ===== */
 .tabs{
   position: sticky;
   top: var(--topbarH);
   z-index: 180;
   display:flex;
-  gap:14px;                 /* ✅ 버튼처럼 보이지 않게 간격 */
+  gap:14px;
   padding: 10px 16px 8px;
   flex-wrap:wrap;
 
@@ -158,7 +241,6 @@ body{
   flex:0 0 auto;
 }
 
-/* ✅ 탭을 “필(캡슐)” 느낌 제거 */
 .tab{
   border: none;
   background: transparent;
@@ -181,7 +263,6 @@ body{
   opacity: 1;
 }
 
-/* ✅ 활성 탭 밑줄(이미지 느낌) */
 .tab.active::after{
   content:"";
   position:absolute;
@@ -196,20 +277,80 @@ body{
 
 /* ===== Content ===== */
 .content{
-  padding: 12px 16px 12px;
+  padding: 12px 16px 0;
   flex:1 1 auto;
   min-height:0;
-  overflow:hidden;
+  overflow: hidden;
+  overflow-x:hidden !important;
 }
 
-#view{ height:100%; min-height:0; }
+/* ✅ FIX FINAL: zoom 제거 → transform scale로 교체(클릭/포커스 히트테스트 안정화) */
+#view{
+  height: 100%;
+  width: 100%;
 
+  min-height:0;
+  overflow:hidden;
+
+  /* ❌ zoom 제거 */
+  /* zoom: var(--uiScale); */
+
+  /* ✅ scale 적용 */
+  transform: scale(var(--uiScale));
+  transform-origin: top left;
+
+  /* ✅ scale로 줄어든 만큼 “역보정”해서 실제 화면을 꽉 채움 */
+  width: calc(100% / var(--uiScale));
+  height: calc(100% / var(--uiScale));
+
+  display:flex;
+  flex-direction:column;
+  flex: 1 1 auto;
+}
+
+
+/* view 내부 레이아웃 안정 */
 .view-fill{
-  height:100%;
+  flex:1 1 auto;
   min-height:0;
   display:flex;
   flex-direction:column;
   gap:10px;
+}
+
+/* =========================================================
+   ✅ (핵심) Splitter 레이아웃 컨테이너
+   ========================================================= */
+.work-area{
+  flex:1 1 auto;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  overflow:hidden;
+}
+
+/* ✅ transform 스케일 적용 제거 */
+.work-area > .top-pane,
+.work-area > .bottom-pane{
+  transform: none !important;
+  width: 100%;
+}
+
+.pane{ min-height:0; min-width:0; }
+.top-pane{ flex:0 0 auto; }
+
+.bottom-pane{
+  flex:1 1 auto;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.bottom-pane > .panel{
+  flex:1 1 auto;
+  min-height:0;
 }
 
 /* ===== Panel ===== */
@@ -234,15 +375,19 @@ body{
   margin-bottom: 10px;
 }
 
+/* ✅ FIX: 테이블 중간으로 헤더가 내려오는 현상 방지 */
 .panel-header.sticky-head{
   position: static;
-  top:auto;
-  z-index:auto;
+  top: auto;
+  z-index: auto;
+
   background: transparent;
-  backdrop-filter:none;
-  border-bottom:none;
+  backdrop-filter: none;
+
+  border-bottom: none;
   margin: 0 0 10px;
   padding: 0;
+
   border-radius: 0;
 }
 
@@ -281,14 +426,22 @@ body{
 .table-wrap{
   border:1px solid var(--softLine);
   border-radius: 16px;
-  overflow:auto;
+
+  overflow-y:auto;
+  overflow-x:hidden;
+
   background: rgba(255,255,255,.84);
   flex:1 1 auto;
   min-height:0;
 
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+
+  /* ✅ FIX: sticky/transform 히트테스트 안정화 */
+  contain: layout paint;
+  isolation: isolate;
 }
+
 
 table{
   width: 100%;
@@ -298,8 +451,8 @@ table{
   font-size: 12px;
 }
 
-.calc-table{ min-width: 1180px; }
-.code-table{ min-width: 1180px; }
+.calc-table{ min-width: 100%; }
+.code-table{ min-width: 100%; }
 
 thead th{
   position: sticky;
@@ -314,12 +467,17 @@ thead th{
   white-space: nowrap;
 }
 
+
 th, td{ min-width:0; }
 
 tbody td{
   border-bottom: 1px solid rgba(0,0,0,.06);
   padding: 6px 8px;
   vertical-align: middle;
+
+  /* ✅ FIX: body 셀이 헤더 아래에서 정상 hit 되도록 */
+  position: relative;
+  z-index: 1;
 }
 
 /* ===== Inputs ===== */
@@ -343,6 +501,10 @@ tbody td{
   user-select: text !important;
   -webkit-user-select: text !important;
   cursor: text;
+
+  /* ✅ FIX: 클릭/포커스 hit 안정화 */
+  position: relative;
+  z-index: 2;
 }
 
 .cell:focus{
@@ -362,7 +524,7 @@ tbody td{
   border-color: rgba(0,0,0,.10);
 }
 
-/* smallbtn: 오렌지 솔리드(이미지 느낌) */
+/* smallbtn: 오렌지 솔리드 */
 .smallbtn{
   background: linear-gradient(180deg, rgba(240,138,36,.92), rgba(220,110,20,.92));
   border-color: rgba(240,138,36,.55);
@@ -371,11 +533,9 @@ tbody td{
 .smallbtn:hover{ filter: brightness(1.02); }
 .smallbtn:active{ filter: brightness(.98); }
 
+/* ✅ 요청: 하단 설명문구 제거 */
 .footer{
-  padding: 10px 16px 16px;
-  color: var(--muted);
-  font-size: 12px;
-  flex:0 0 auto;
+  display:none !important;
 }
 
 /* ===========================
@@ -477,11 +637,12 @@ tbody td{
 /* 구분 편집 */
 .section-editor{
   display:grid;
-  grid-template-columns: 1fr 90px 72px;
+  grid-template-columns: 1fr 46px 132px;
   gap:8px;
   align-items:center;
   min-width:0;
 }
+
 .section-editor input{
   min-width:0;
   border:2px solid rgba(240,138,36,.30);
@@ -495,9 +656,15 @@ tbody td{
   text-overflow:ellipsis;
   white-space:nowrap;
 }
+
 .section-editor input:focus{
   border-color: rgba(240,138,36,.85);
   box-shadow: 0 0 0 4px rgba(240,138,36,.16);
+}
+
+.section-editor input:nth-child(2){
+  padding: 7px 6px;
+  text-align:center;
 }
 
 /* 변수표 */
@@ -511,6 +678,9 @@ tbody td{
 
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+
+  contain: layout paint;
+  isolation: isolate;
 }
 
 .var-table{
@@ -532,9 +702,14 @@ tbody td{
   font-weight:900;
 }
 
+
 .var-table tbody td{
   border-bottom:1px solid rgba(0,0,0,.06);
   padding:6px 8px;
+
+  /* ✅ FIX: body 셀이 헤더 아래에서 정상 hit 되도록 */
+  position: relative;
+  z-index: 1;
 }
 
 /* ===== Scrollbar ===== */
@@ -561,4 +736,476 @@ tbody td{
 @media (max-width: 980px){
   .calc-layout.top-grid{ grid-template-columns: 1fr; }
   :root{ --topSplitH: 220px; }
+  :root{ --uiScale: .95; }
+
+  /* ✅ 모바일에서는 transform 스케일 해제 (zoom 절대 쓰지 않음) */
+  #view{
+    transform: none;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+
+/* =========================================================
+   ✅ Help button
+   ========================================================= */
+.btn.help{
+  border-color: rgba(240,138,36,.35);
+}
+
+.btn.help::before{
+  content:"?";
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  font-weight: 1000;
+  font-size: 12px;
+  line-height: 1;
+
+  color:#fff;
+  background: linear-gradient(180deg, var(--accent2), var(--accent));
+  box-shadow: 0 10px 18px rgba(240,138,36,.22);
+}
+
+/* =========================================================
+   ✅ top-split ↔ panel 사이 높이 조절 리사이저
+   ========================================================= */
+.split-resizer{
+  height: 14px;
+  margin: 8px 2px;
+  border-radius: 12px;
+  cursor: row-resize;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+
+  background: rgba(255,255,255,.60);
+  border: 1px dashed rgba(240,138,36,.30);
+  box-shadow: 0 10px 22px rgba(0,0,0,.06);
+}
+
+.split-resizer::before{
+  content:"";
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(240,138,36,.45);
+}
+
+.split-resizer:hover{
+  border-color: rgba(240,138,36,.55);
+  background: rgba(255,255,255,.78);
+}
+
+.split-resizer:active{
+  background: rgba(255,255,255,.92);
+  border-color: rgba(240,138,36,.72);
+}
+
+body.is-resizing{
+  cursor: row-resize !important;
+  user-select:none !important;
+  -webkit-user-select:none !important;
+}
+
+/* =========================================================
+   ✅ ✅ 구분 추가/삭제 버튼을 + / - 로 축소
+   ========================================================= */
+.section-editor .row-actions{
+  justify-content:flex-end;
+  flex-wrap: nowrap;
+  gap:6px;
+}
+
+.section-editor .row-actions .smallbtn{
+  height: 34px;
+  padding: 0 10px;
+}
+
+.section-editor .row-actions .smallbtn:nth-child(2),
+.section-editor .row-actions .smallbtn:nth-child(3){
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  justify-content:center;
+  position: relative;
+  font-size: 0;
+  line-height: 0;
+}
+
+.section-editor .row-actions .smallbtn:nth-child(2)::before{
+  content: "+";
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 1000;
+  color: #fff;
+}
+
+.section-editor .row-actions .smallbtn:nth-child(3)::before{
+  content: "−";
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 1000;
+  color: #fff;
+}
+
+@media (max-width: 420px){
+  .section-editor{ grid-template-columns: 1fr 44px 124px; }
+  .section-editor input:nth-child(2){ padding: 6px 6px; }
+  .section-editor .row-actions .smallbtn{ height: 32px; }
+  .section-editor .row-actions .smallbtn:nth-child(2),
+  .section-editor .row-actions .smallbtn:nth-child(3){
+    width: 32px;
+    min-width: 32px;
+  }
+}
+
+/* =========================================================
+   ✅ 코드 탭(코드 영역) 하단 공백 줄이기
+   ========================================================= */
+#view .panel{ flex: 1 1 auto; min-height: 0; }
+#view .panel .table-wrap{ flex: 1 1 auto; min-height: 0; }
+
+/* ✅✅ 멀티 선택(블록 지정) 행 하이라이트 - 더 명확하게 (산출표만) */
+table.calc-table tr.row-selected td{
+  /* 배경을 조금 더 진하게 + 살짝 그라데이션 느낌 */
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.20),
+    rgba(240,138,36,.14)
+  ) !important;
+
+  /* 전체 행에 은은한 테두리(위/아래)로 “선택 범위” 느낌 */
+  box-shadow:
+    inset 0 1px 0 rgba(240,138,36,.35),
+    inset 0 -1px 0 rgba(240,138,36,.30) !important;
+}
+
+/* ✅ 왼쪽 강한 바(시선 고정) */
+table.calc-table tr.row-selected td:first-child{
+  box-shadow:
+    inset 6px 0 0 rgba(240,138,36,.95),
+    inset 0 1px 0 rgba(240,138,36,.35),
+    inset 0 -1px 0 rgba(240,138,36,.30) !important;
+}
+
+/* ✅ 선택된 행 내부 input도 같이 강조 (눈에 확 들어오게) */
+table.calc-table tr.row-selected .cell{
+  border-color: rgba(240,138,36,.85) !important;
+  box-shadow: 0 0 0 4px rgba(240,138,36,.18) !important;
+  background: rgba(255,250,240,.92) !important;
+}
+
+/* ✅ (선택) 범위의 “양끝”만 더 진하게 주고 싶으면 사용
+   - JS에서 row-selected-start / row-selected-end 클래스를 첫/마지막 행에 추가하면 적용됨
+*/
+table.calc-table tr.row-selected-start td{
+  box-shadow:
+    inset 0 3px 0 rgba(240,138,36,.55),
+    inset 0 1px 0 rgba(240,138,36,.35),
+    inset 0 -1px 0 rgba(240,138,36,.30) !important;
+}
+table.calc-table tr.row-selected-end td{
+  box-shadow:
+    inset 0 -3px 0 rgba(240,138,36,.55),
+    inset 0 1px 0 rgba(240,138,36,.35),
+    inset 0 -1px 0 rgba(240,138,36,.30) !important;
+}
+
+/* =========================================================
+   ✅ 셀 블록 선택 (Shift+클릭 영역 선택)
+   - JS: input.cell.block-selected
+   - 디자인 일관성 유지 + 명확한 시각 피드백
+   ========================================================= */
+
+/* 기본 블록 셀 */
+.cell.block-selected{
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.28),
+    rgba(240,138,36,.18)
+  ) !important;
+
+  border-color: rgba(240,138,36,.95) !important;
+
+  box-shadow:
+    0 0 0 2px rgba(240,138,36,.55),
+    inset 0 0 0 1px rgba(255,255,255,.65) !important;
+
+  color: #1d1d1f;
+}
+
+/* 포커스가 블록 셀 안에 있을 때 (현재 입력 셀 강조) */
+.cell.block-selected:focus{
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.40),
+    rgba(240,138,36,.26)
+  ) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(240,138,36,.75),
+    0 0 0 7px rgba(240,138,36,.22) !important;
+}
+
+/* 읽기 전용 셀도 블록은 유지 (톤만 다운) */
+.cell.readonly.block-selected{
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.18),
+    rgba(240,138,36,.12)
+  ) !important;
+
+  border-color: rgba(240,138,36,.55) !important;
+  color: rgba(0,0,0,.65);
+}
+
+/* 행 선택(row-selected) 위에 셀 블록이 올라왔을 때 우선순위 */
+table.calc-table tr.row-selected .cell.block-selected{
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.45),
+    rgba(240,138,36,.30)
+  ) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(240,138,36,.85),
+    inset 0 0 0 1px rgba(255,255,255,.75) !important;
+}
+
+
+
+/* =========================================================
+   ✅ Project Slot (Topbar 중앙/노란박스 위치)
+   ========================================================= */
+.project-slot{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex: 0 0 auto;
+}
+
+.btn.btn-project{
+  height: 38px;
+  padding: 0 14px;
+  min-width: 260px;
+  justify-content: center;
+  background: rgba(255,255,255,.70);
+  border: 2px solid rgba(240,138,36,.45);
+  color: var(--accent);
+  font-weight: 1000;
+}
+
+.btn.btn-project:hover{
+  border-color: rgba(240,138,36,.70);
+  box-shadow: 0 14px 28px rgba(0,0,0,.12);
+}
+.btn.btn-project:active{
+  box-shadow: 0 8px 18px rgba(0,0,0,.10);
+}
+
+.project-badge{
+  height: 38px;
+  display:flex;
+  align-items:center;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.10);
+  background: rgba(255,255,255,.88);
+  box-shadow: 0 10px 22px rgba(0,0,0,.08);
+
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(0,0,0,.70);
+
+  max-width: 320px;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px){
+  .topbar{ align-items:flex-start; flex-wrap: wrap; }
+  .project-slot{ order: 3; width: 100%; justify-content: flex-start; }
+  .btn.btn-project{ min-width: 240px; }
+  .project-badge{ max-width: calc(100% - 260px); }
+}
+
+/* =========================================================
+   ✅ Project Modal (테이블형) - aria-hidden 방식만 사용
+   ========================================================= */
+.modal{
+  position: fixed;
+  inset:0;
+  display:none;
+  z-index: 9999;
+}
+.modal[aria-hidden="false"]{ display:block; }
+
+.modal-backdrop{
+  position:absolute; inset:0;
+  background: rgba(0,0,0,.35);
+  backdrop-filter: blur(3px);
+}
+
+.modal-card{
+  position: relative;
+  width: min(980px, calc(100vw - 28px));
+  margin: 60px auto 0;
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.25);
+  overflow:hidden;
+}
+.modal-wide{ width: min(1060px, calc(100vw - 28px)); }
+
+.modal-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+  gap: 12px;
+  background: rgba(255,255,255,.92);
+}
+.modal-title{
+  font-size: 16px;
+  font-weight: 1000;
+  letter-spacing: -.2px;
+  position: relative;
+  padding-left: 12px;
+}
+.modal-title::before{
+  content:"";
+  position:absolute;
+  left:0; top: 4px;
+  width:4px; height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.modal-head-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+
+.modal-body{ padding: 12px 14px 14px; }
+.modal-foot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(0,0,0,.08);
+  gap: 12px;
+  background: rgba(255,255,255,.92);
+}
+
+/* 힌트 */
+.project-hint{
+  font-size: 12px;
+  color: rgba(0,0,0,.55);
+  margin-bottom: 10px;
+  line-height: 1.45;
+}
+
+/* 테이블 래퍼 */
+.project-table-wrap{
+  max-height: min(58vh, 560px);
+  overflow:auto;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(0,0,0,.08);
+}
+
+/* 테이블 */
+.project-table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.project-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(250,250,250,.98);
+  border-bottom: 2px solid rgba(240,138,36,.55);
+  padding: 10px 10px;
+  text-align:left;
+  font-weight: 1000;
+  white-space: nowrap;
+}
+
+.project-table tbody td{
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  padding: 6px 8px;
+  vertical-align: middle;
+
+  /* ✅ FIX: body 셀이 헤더 아래에서 정상 hit 되도록 */
+  position: relative;
+  z-index: 1;
+}
+
+/* ✅ 행 선택(테이블 전용) - tr.project-row로 고정 */
+.project-table tbody tr.project-row{ cursor:pointer; }
+.project-table tbody tr.project-row.selected td{
+  background: rgba(240,138,36,.10);
+}
+.project-table tbody tr.project-row.selected td:first-child{
+  box-shadow: inset 4px 0 0 rgba(240,138,36,.85);
+}
+
+/* 셀 input */
+.project-cell-input{
+  width: 100%;
+  min-width: 0;
+  border: 2px solid rgba(240,138,36,.30);
+  background: rgba(255,255,255,.96);
+  border-radius: 12px;
+  padding: 7px 10px;
+  font-size: 12px;
+  outline: none;
+
+  /* ✅ FIX: 클릭/포커스 hit 안정화 */
+  position: relative;
+  z-index: 2;
+}
+.project-cell-input:focus{
+  border-color: rgba(240,138,36,.85);
+  box-shadow: 0 0 0 4px rgba(240,138,36,.16);
+}
+
+/* 버튼 타입 */
+.btn.btn-primary{
+  border: 2px solid rgba(240,138,36,.70);
+  background: linear-gradient(180deg, rgba(255,181,90,.45), rgba(240,138,36,.12));
+  color: var(--accent);
+  font-weight: 1000;
+}
+.btn.btn-danger{
+  border: 2px solid rgba(200,0,0,.25);
+  background: rgba(255,230,230,.85);
+}
+
+.modal-foot .muted{
+  font-size: 12px;
+  color: rgba(0,0,0,.55);
+}
+
+@media (max-width: 640px){
+  .modal-card{ margin: 16px auto 0; }
+  .modal-head{ align-items:flex-start; gap: 10px; }
+  .modal-head-actions{ justify-content:flex-end; }
+  .project-table-wrap{ max-height: 70vh; }
 }
