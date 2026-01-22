@@ -1286,15 +1286,12 @@ const CODE_COL_INDEX = {
 
       const curRow = Number(t.dataset.row || 0);
 
-      // ESC: 다중선택 종료
-      if (e.key === "Escape") {
-        if (__calcMulti.active) {
-          e.preventDefault();
-          __calcMultiClear();
-          __applyCalcRowSelectionStyles(tabId);
-        }
-        return;
-      }
+
+      // ESC 단독은 아무 동작 안 함 (블록 유지)
+if (e.key === "Escape") {
+  return;
+}
+
 
       // Shift+B: 다중선택 토글
       if ((e.key === "B" || e.key === "b") && e.shiftKey) {
@@ -2701,6 +2698,28 @@ function initAppOnce() {
     return;
   }
 
+
+       // ✅ Ctrl + Esc : 블록 선택 해제 (유일한 해제 수단)
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && e.ctrlKey) {
+    e.preventDefault();
+
+    // 셀 블록 해제
+    __clearCellBlockSelection();
+    __finBlockSel.anchor = null;
+
+    // 산출표 행 블록 해제
+    if (__calcMulti.active) {
+      __calcMultiClear();
+      const tabId = state.activeTab;
+      if (tabId === "steel" || tabId === "steel_sub" || tabId === "support") {
+        __applyCalcRowSelectionStyles(tabId);
+      }
+    }
+  }
+}, true);
+
+
   // ================================
   // ✅ 일반 클릭
   // ================================
@@ -2718,12 +2737,7 @@ function initAppOnce() {
 }, true);
 
 
-    // Esc => 블록 해제(원하면 유지/삭제 가능)
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        __clearCellBlockSelection();
-      }
-    }, true);
+    
   }
 
    /* ============================
@@ -2947,14 +2961,15 @@ function __applyRectSelection(fromKey, toKey) {
   }
 }
 
-/** 일반 클릭: 블록 해제 + 앵커 갱신 */
+/** 일반 클릭: 블록 유지 + 앵커만 갱신 */
 function __handleNormalClickCell(input) {
   if (!(input instanceof HTMLInputElement)) return;
-  // 기존 블록 제거
-  __clearCellBlockSelection();
-  // 앵커 저장
+
+  // ❌ 블록 해제하지 않음
+  // 앵커만 갱신 (다음 Shift+클릭 기준점)
   __setAnchor(input);
 }
+
 
 /** Shift+클릭: 앵커~현재 셀까지 사각형 블록 */
 function __handleShiftClickCell(input) {
