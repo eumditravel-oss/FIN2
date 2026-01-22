@@ -2699,26 +2699,7 @@ function initAppOnce() {
   }
 
 
-       // ✅ Ctrl + Esc : 블록 선택 해제 (유일한 해제 수단)
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && e.ctrlKey) {
-    e.preventDefault();
-
-    // 셀 블록 해제
-    __clearCellBlockSelection();
-    __finBlockSel.anchor = null;
-
-    // 산출표 행 블록 해제
-    if (__calcMulti.active) {
-      __calcMultiClear();
-      const tabId = state.activeTab;
-      if (tabId === "steel" || tabId === "steel_sub" || tabId === "support") {
-        __applyCalcRowSelectionStyles(tabId);
-      }
-    }
-  }
-}, true);
-
+       
 
   // ================================
   // ✅ 일반 클릭
@@ -2880,6 +2861,55 @@ function bindGlobalHotkeysOnce() {
     updateScrollHeights();
   });
 }
+
+
+
+   // =========================================================
+// ✅ Ctrl+Z : 블록 선택 / 행 선택 해제 (1회 바인딩)
+// - 선택이 있을 때만 가로채고
+// - 선택이 없으면 기본 Undo 동작 유지
+// =========================================================
+if (!window.__finClearSelectionHotkeyBound) {
+  window.__finClearSelectionHotkeyBound = true;
+
+  document.addEventListener("keydown", (e) => {
+    // Ctrl + Z
+    if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "z" || e.key === "Z"))) {
+      return;
+    }
+
+    const hasCellBlock =
+      !!document.querySelector("input.cell.block-selected");
+
+    const hasCalcMulti =
+      !!__calcMulti && __calcMulti.active;
+
+    // ✅ 선택이 없으면 → 원래 Ctrl+Z(Undo) 그대로
+    if (!hasCellBlock && !hasCalcMulti) {
+      return;
+    }
+
+    // ✅ 선택이 있으면 → 해제 전용 단축키로 사용
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 🔹 셀 블록 해제
+    if (hasCellBlock) {
+      __clearCellBlockSelection();
+      __finBlockSel.anchor = null;
+    }
+
+    // 🔹 산출표 행 블록 해제
+    if (hasCalcMulti) {
+      __calcMultiClear();
+      const tabId = state.activeTab;
+      if (tabId === "steel" || tabId === "steel_sub" || tabId === "support") {
+        __applyCalcRowSelectionStyles(tabId);
+      }
+    }
+  }, true);
+}
+
 
 /* =========================================================
    ✅ Shift + Click 셀 블록지정 (input.cell)
