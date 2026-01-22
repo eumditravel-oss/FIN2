@@ -2669,25 +2669,54 @@ function initAppOnce() {
     window.__finCellBlockBound = true;
 
     document.addEventListener("mousedown", (e) => {
-      const t = e.target;
-      const input = t?.closest?.("input.cell");
-      if (!(input instanceof HTMLInputElement)) return;
+  const t = e.target;
+  const input = t?.closest?.("input.cell");
+  if (!(input instanceof HTMLInputElement)) return;
 
-      // grid 없는 input(cell)도 있으니 최소 조건: class cell
-      // 필요하면 특정 grid만 적용 가능(아래 주석 참고)
-      // const g = input.dataset?.grid || "";
-      // if (!["calc","code","var"].includes(g)) return;
+  const grid = input.dataset.grid || "";
+  const tabId = input.dataset.tab || "";
+  const row = Number(input.dataset.row || 0);
 
-      // Shift + 좌클릭 => 범위 지정
-      if (e.shiftKey) {
-        e.preventDefault();  // 텍스트 드래그 선택 방지
-        __handleShiftClickCell(input);
-        return;
+  // ================================
+  // ✅ Shift + 좌클릭
+  // ================================
+  if (e.shiftKey) {
+    e.preventDefault(); // 텍스트 드래그 방지
+
+    // 🔴 1) 산출표(calc)는 "행 단위 선택"
+    if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
+      // 기존 다중선택 컨텍스트 아니면 시작
+      if (!__calcMultiIsSameContext(tabId)) {
+        __calcMultiBegin(tabId, row);
+      } else {
+        __calcMultiSetRange(tabId, __calcMulti.anchorRow ?? row, row);
       }
 
-      // 일반 클릭 => 앵커 갱신(기존 블록 해제 포함)
-      __handleNormalClickCell(input);
-    }, true);
+      __applyCalcRowSelectionStyles(tabId);
+      return;
+    }
+
+    // 🔵 2) code / var 등은 기존 셀 블록 선택 유지
+    __handleShiftClickCell(input);
+    return;
+  }
+
+  // ================================
+  // ✅ 일반 클릭
+  // ================================
+
+  // calc-table 클릭 시 → 다중선택 앵커만 갱신
+  if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
+    __calcMultiClear();
+    __calcMultiBegin(tabId, row);
+    __applyCalcRowSelectionStyles(tabId);
+    return;
+  }
+
+  // 그 외는 기존 셀 블록 로직
+  __handleNormalClickCell(input);
+}, true);
+
 
     // Esc => 블록 해제(원하면 유지/삭제 가능)
     document.addEventListener("keydown", (e) => {
