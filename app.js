@@ -2702,16 +2702,25 @@ function initAppOnce() {
        
 
   // ================================
-  // ✅ 일반 클릭
-  // ================================
+// ✅ 일반 클릭
+// ================================
 
-  // calc-table 클릭 시 → 다중선택 앵커만 갱신
-  if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
-    __calcMultiClear();
+// calc-table 클릭 시
+// - ❌ 기존 블록 해제 금지
+// - ✅ 앵커(row)만 이동
+if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
+  // 블록이 없는 경우만 새로 시작
+  if (!__calcMultiIsSameContext(tabId)) {
     __calcMultiBegin(tabId, row);
-    __applyCalcRowSelectionStyles(tabId);
-    return;
+  } else {
+    // 블록이 이미 있으면 → 해제하지 말고 앵커만 갱신
+    __calcMulti.anchorRow = row;
   }
+
+  __applyCalcRowSelectionStyles(tabId);
+  return;
+}
+
 
   // 그 외는 기존 셀 블록 로직
   __handleNormalClickCell(input);
