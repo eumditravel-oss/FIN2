@@ -3354,12 +3354,14 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
 
    } // ✅ initAppOnce() 끝
 
-  // ✅ DOMContentLoaded 시 init (반드시 IIFE 내부, 함수 밖)
+    // ✅ DOMContentLoaded 시 init (반드시 IIFE 내부, 함수 밖)
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
   } else {
     initAppOnce();
-  }(); // ✅ IIFE 끝
+  }
+})(); // ✅ IIFE 끝
+
 
 
 
