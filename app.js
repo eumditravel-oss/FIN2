@@ -3204,82 +3204,91 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
   // - calc-grid는 위에서 "행 선택" 전용 mousedown 핸들러가 처리 중이므로
   //   여기서는 code/var 등 "셀 블록 선택" 전용으로 처리
   // =========================================================
-    function __handleNormalClickCell(input) {
-    if (!(input instanceof HTMLInputElement)) return;
+        function __handleNormalClickCell(input) {
+      if (!(input instanceof HTMLInputElement)) return;
 
-    const k = __getCellKey(input);
-    if (!k.grid) return;
+      // ✅ calc는 행선택 로직이 전담하므로 여기서 제외
+      const grid = input.dataset.grid || "";
+      if (grid === "calc") return;
 
-    // ✅ calc(산출표)는 "행 선택" 전용 핸들러가 위에서 처리 중이므로 여기서는 건드리지 않음
-    const isCalcTab =
-      k.grid === "calc" &&
-      (k.tab === "steel" || k.tab === "steel_sub" || k.tab === "support");
-    if (isCalcTab) return;
+      // 기존 블록 선택은 일반 클릭이면 해제
+      __clearCellBlockSelection();
+      __setAnchor(input);
+    }
 
-    // ✅ 일반 클릭이면 기존 블록 선택 해제 후, 현재 셀을 앵커로 갱신
-    __clearCellBlockSelection();
-    __setAnchor(input);
-  }
+    function __handleShiftClickCell(input) {
+      if (!(input instanceof HTMLInputElement)) return;
 
-  // =========================================================
-  // ✅ 셀 블록 선택 바인딩(1회)
-  // - calc(산출표)은 위에서 행 선택 전용 처리
-  // - code/var 등은 여기서 Shift+클릭 블록 선택 처리
-  // =========================================================
-  if (!window.__finCellBlockBound2) {
-    window.__finCellBlockBound2 = true;
+      // ✅ calc는 행선택 로직이 전담하므로 여기서 제외
+      const grid = input.dataset.grid || "";
+      if (grid === "calc") return;
 
-    document.addEventListener(
-      "mousedown",
-      (e) => {
+      const targetKey = __getCellKey(input);
+
+      // anchor가 없거나, 컨텍스트가 다르면 현재를 anchor로 새로 잡음
+      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
+        __setAnchor(input);
+      }
+
+      // 기존 선택을 지우고 사각형 블록 선택 적용
+      __clearCellBlockSelection();
+      __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
+    }
+
+    // =========================================================
+    // ✅ Shift+클릭 셀 블록지정 바인딩 (code/var 전용)
+    // - calc는 위에서 별도 mousedown 핸들러가 처리하므로 여기서 제외
+    // =========================================================
+    if (!window.__finCellBlockBound2) {
+      window.__finCellBlockBound2 = true;
+
+      document.addEventListener("mousedown", (e) => {
         const input = e.target?.closest?.("input.cell");
         if (!(input instanceof HTMLInputElement)) return;
 
-        const k = __getCellKey(input);
-        if (!k.grid) return;
+        const grid = input.dataset.grid || "";
 
-        // ✅ calc(산출표)은 행 선택 핸들러가 따로 있으니 여기서는 패스
-        const isCalcTab =
-          k.grid === "calc" &&
-          (k.tab === "steel" || k.tab === "steel_sub" || k.tab === "support");
-        if (isCalcTab) return;
+        // ✅ 산출표(calc)는 행선택 전용 로직에서 처리
+        if (grid === "calc") return;
 
-        // -------------------------
-        // Shift + Click : 블록 선택
-        // -------------------------
+        // Shift+클릭: 블록 지정
         if (e.shiftKey) {
-          e.preventDefault(); // 텍스트 드래그 방지
-
-          // 앵커가 없거나 컨텍스트가 다르면 앵커를 새로 잡음
-          const anchorInput =
-            document.activeElement instanceof HTMLInputElement
-              ? document.activeElement
-              : null;
-
-          if (
-            !__finBlockSel.anchor ||
-            (anchorInput && !__sameContext(__getCellKey(anchorInput), k))
-          ) {
-            __setAnchor(anchorInput || input);
-          }
-
-          // 앵커가 그래도 없으면 현재 셀을 앵커로
-          if (!__finBlockSel.anchor) __setAnchor(input);
-
-          __applyCellBlockSelection(__finBlockSel.anchor, k);
+          e.preventDefault(); // 드래그 선택 방지
+          __handleShiftClickCell(input);
           return;
         }
 
-        // -------------------------
-        // 일반 클릭 : 앵커 갱신(+기존 블록 해제)
-        // -------------------------
+        // 일반 클릭: 기존 블록 해제 + anchor 갱신
         __handleNormalClickCell(input);
-      },
-      true
-    );
-  }
+      }, true);
+    }
+
+  // ✅ 4) 최초 UI 반영
+  updateProjectHeaderUI();
+  render();
+
+  // ✅ 5) 전역 단축키 바인딩 (Ctrl+., Ctrl+B, Ctrl+F3 등)
+  bindGlobalHotkeysOnce();
+
+  raf2(() => {
+    updateStickyVars();
+    applyPanelStickyTop();
+    updateViewFillHeight();
+    updateScrollHeights();
+  });
+} // ✅ initAppOnce 닫기
+
+/* ============================
+   ✅ DOM Ready
+============================ */
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAppOnce);
+} else {
+  initAppOnce();
+}
 
 })(); // ✅ IIFE 닫기
+
 
 
 
