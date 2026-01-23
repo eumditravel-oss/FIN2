@@ -136,6 +136,52 @@
 }
 
 
+     /***************
+   * ✅ REMARK(비고) 고정코드/행 규칙
+   ***************/
+  const REMARK_CODE = "ZZZZZZZZZZZZZZZZZ";
+  const REMARK_NAME = "[비          고]";
+
+  function normalizeRemarkName(s) {
+    return String(s || "").trim().replace(/\s+/g, " ");
+  }
+
+  function isRemarkCode(code) {
+    return String(code || "").trim().toUpperCase() === REMARK_CODE.toUpperCase();
+  }
+
+  function isRemarkRowObj(r) {
+    if (!r) return false;
+    if (isRemarkCode(r.code)) return true;
+    // name은 자동세팅 되지만 혹시 수동/레거시 데이터 대비
+    return normalizeRemarkName(r.name) === normalizeRemarkName(REMARK_NAME);
+  }
+
+  function getRemarkCodeMasterRow() {
+    return {
+      code: REMARK_CODE,
+      name: REMARK_NAME,
+      spec: "",
+      unit: "",
+      surcharge: null,
+      convUnit: "",
+      convFactor: null,
+      note: ""
+    };
+  }
+
+  // ✅ codeMaster 최상단에 비고 고정코드 강제 + 중복 제거
+  function ensureRemarkCodeMasterTop() {
+    if (!state || !Array.isArray(state.codeMaster)) state.codeMaster = [];
+
+    // 기존 동일 코드 제거
+    state.codeMaster = state.codeMaster.filter(r => !isRemarkCode(r?.code));
+
+    // 최상단에 삽입
+    state.codeMaster.unshift(getRemarkCodeMasterRow());
+  }
+
+
   /***************
    * Code Master
    ***************/
@@ -374,6 +420,10 @@
   })();
 
   let state = activeProjectId ? loadProjectState(activeProjectId) : deepClone(DEFAULT_STATE);
+     // ✅ 항상 비고 고정코드 최상단 강제
+  ensureRemarkCodeMasterTop();
+  saveState();
+
 
   // ✅ (v13.2) 구분명 리스트 클릭/↑↓ 후 렌더링되면 포커스 복원
   let __pendingSectionFocus = null;
@@ -817,28 +867,40 @@ const CODE_COL_INDEX = {
 
     const tbody = el("tbody", {}, []);
 
-    state.codeMaster.forEach((row, idx) => {
-      const tr = el("tr", {}, [
-        tdInput("codeMaster", idx, "code", row.code),
-        tdInput("codeMaster", idx, "name", row.name),
-        tdInput("codeMaster", idx, "spec", row.spec),
-        tdInput("codeMaster", idx, "unit", row.unit),
-        tdInput("codeMaster", idx, "surcharge", row.surcharge ?? ""),
-        tdInput("codeMaster", idx, "convUnit", row.convUnit),
-        tdInput("codeMaster", idx, "convFactor", row.convFactor ?? ""),
-        tdInput("codeMaster", idx, "note", row.note),
-        el("td", {}, [
-          el("button", {
-            class: "smallbtn",
-            onclick: () => {
-              state.codeMaster.splice(idx, 1);
-              saveState(); render();
-            }
-          }, ["삭제"])
-        ])
-      ]);
-      tbody.appendChild(tr);
-    });
+      state.codeMaster.forEach((row, idx) => {
+    const isFixed = (idx === 0 && isRemarkCode(row.code));
+
+    const tr = el("tr", { class: isFixed ? "remark-row" : "" }, [
+      tdInput("codeMaster", idx, "code", row.code, { readonly: isFixed }),
+      tdInput("codeMaster", idx, "name", row.name, { readonly: isFixed }),
+      tdInput("codeMaster", idx, "spec", row.spec, { readonly: isFixed }),
+      tdInput("codeMaster", idx, "unit", row.unit, { readonly: isFixed }),
+      tdInput("codeMaster", idx, "surcharge", row.surcharge ?? "", { readonly: isFixed }),
+      tdInput("codeMaster", idx, "convUnit", row.convUnit, { readonly: isFixed }),
+      tdInput("codeMaster", idx, "convFactor", row.convFactor ?? "", { readonly: isFixed }),
+      tdInput("codeMaster", idx, "note", row.note, { readonly: isFixed }),
+      el("td", {}, [
+        el("button", {
+          class: "smallbtn",
+          disabled: isFixed ? "disabled" : null,
+          onclick: () => {
+            if (isFixed) return;
+
+            state.codeMaster.splice(idx, 1);
+
+            // ✅ 삭제 후에도 최상단 고정 보장
+            ensureRemarkCodeMasterTop();
+
+            saveState();
+            render();
+          }
+        }, [isFixed ? "고정" : "삭제"])
+      ])
+    ]);
+
+    tbody.appendChild(tr);
+  });
+
 
     table.appendChild(thead);
     table.appendChild(tbody);
@@ -2109,9 +2171,14 @@ function importFromExcelFile(file) {
         return;
       }
 
-      state.codeMaster = next;
+            // ✅ 비고 고정코드는 가져오기에서 덮어쓰지 않도록 강제 유지
+      const filtered = next.filter(r => !isRemarkCode(r?.code));
+      state.codeMaster = filtered;
+      ensureRemarkCodeMasterTop();
+
       saveState();
       render();
+
 
       alert(`코드 ${next.length}개를 가져왔습니다. (시트: ${sheetName})`);
     } catch (err) {
@@ -2833,6 +2900,36 @@ function bindGlobalHotkeysOnce() {
     }
   }, true);
 }
+
+       // -------------------------
+    // Ctrl + F10 : (산출탭) 비고행 아래에 1행 추가
+    // - 현재 포커스 행이 비고행(REMARK_NAME/REMARK_CODE)일 때만 동작
+    // -------------------------
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "F10") {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const tabId = state.activeTab;
+      const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+      if (!isCalc) return;
+
+      const ae2 = document.activeElement;
+      if (!(ae2 instanceof HTMLInputElement)) return;
+      if (!(ae2.dataset.grid === "calc" && ae2.dataset.tab === tabId)) return;
+
+      const curRow = Number(ae2.dataset.row || 0);
+
+      const bucket = state[tabId];
+      const sec = bucket.sections[bucket.activeSection];
+      const rr = sec.rows[curRow];
+
+      // ✅ "비고" 행일 때만 아래로 1행 추가
+      if (!isRemarkRowObj(rr)) return;
+
+      addRows(tabId, 1, curRow);
+      return;
+    }
+
 
 
   // ✅ 2) initAppOnce에서 다시 btnProject를 “중복 바인딩”하지 않는다
