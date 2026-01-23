@@ -137,46 +137,52 @@
 
 
      /***************
-   * ✅ REMARK(비고) 고정코드/행 규칙
-   ***************/
-  const REMARK_CODE = "ZZZZZZZZZZZZZZZZZ";
-  const REMARK_NAME = "[비          고]";
+ * ✅ REMARK(비고) 고정코드/행 규칙
+ ***************/
+const REMARK_CODE = "ZZZZZZZZZZZZZZZZZ";
+const REMARK_NAME = "[비          고]";
 
-  function normalizeRemarkName(s) {
-    return String(s || "").trim().replace(/\s+/g, " ");
-  }
-
-  function isRemarkCode(code) {
-    return String(code || "").trim().toUpperCase() === REMARK_CODE.toUpperCase();
-  }
-
-   function isRemarkRowObj(r) {
-  // r이 산출행 객체일 때 "비고" 행인지 판정 (원하면 조건 보강)
-  return isRemarkCode(r?.code) || normalizeRemarkName(r?.name) === normalizeRemarkName(REMARK_NAME);
+function normalizeRemarkName(s) {
+  return String(s || "").trim().replace(/\s+/g, " ");
 }
 
-    return {
-      code: REMARK_CODE,
-      name: REMARK_NAME,
-      spec: "",
-      unit: "",
-      surcharge: null,
-      convUnit: "",
-      convFactor: null,
-      note: ""
-    };
-  }
+function isRemarkCode(code) {
+  return String(code || "").trim().toUpperCase() === REMARK_CODE.toUpperCase();
+}
 
-  // ✅ codeMaster 최상단에 비고 고정코드 강제 + 중복 제거
-  function ensureRemarkCodeMasterTop() {
-    if (!state || !Array.isArray(state.codeMaster)) state.codeMaster = [];
+function isRemarkRowObj(r) {
+  // r이 산출행 객체일 때 "비고" 행인지 판정 (원하면 조건 보강)
+  return (
+    isRemarkCode(r?.code) ||
+    normalizeRemarkName(r?.name) === normalizeRemarkName(REMARK_NAME)
+  );
+}
 
-    // 기존 동일 코드 제거
-    state.codeMaster = state.codeMaster.filter(r => !isRemarkCode(r?.code));
+// ✅ (FIX) 비고 코드마스터 행 생성 함수가 있어야 함
+function getRemarkCodeMasterRow() {
+  return {
+    code: REMARK_CODE,
+    name: REMARK_NAME,
+    spec: "",
+    unit: "",
+    surcharge: null,
+    convUnit: "",
+    convFactor: null,
+    note: ""
+  };
+}
 
-    // 최상단에 삽입
-    state.codeMaster.unshift(getRemarkCodeMasterRow());
-  }
+// ✅ codeMaster 최상단에 비고 고정코드 강제 + 중복 제거
+function ensureRemarkCodeMasterTop() {
+  if (!state || !Array.isArray(state.codeMaster)) state.codeMaster = [];
+
+  // 기존 동일 코드 제거
+  state.codeMaster = state.codeMaster.filter(r => !isRemarkCode(r?.code));
+
+  // 최상단에 삽입
+  state.codeMaster.unshift(getRemarkCodeMasterRow());
+}
+
 
 
   /***************
@@ -2990,21 +2996,19 @@ ensureScrollIntoView(codeInput);
 
 
    function getRemarkItemFromCodeMaster() {
-  // ✅ 너가 쓰는 실제 비고 코드로 정확히 맞춰줘
-  const REMARK_CODE = "ZZZZZZZZZZZZZZZZZ";
+  const REMARK_CODE_LOCAL = "ZZZZZZZZZZZZZZZZZ";
+  const cm = Array.isArray(state?.codeMaster) ? state.codeMaster : [];
 
-  if (Array.isArray(codeMaster)) {
-    // 1) 코드로 먼저 찾기
-    let it = codeMaster.find(x => (x?.code || x?.Code) === REMARK_CODE);
-    if (it) return normalizeCodeItem(it);
+  // 1) 코드로 먼저 찾기
+  let it = cm.find(x => String(x?.code || "").trim().toUpperCase() === REMARK_CODE_LOCAL.toUpperCase());
+  if (it) return normalizeCodeItem(it);
 
-    // 2) 품명/상품명으로 찾기 ("비고")
-    it = codeMaster.find(x => {
-      const pn = (x?.productName || x?.["품명"] || x?.Product || "").toString().trim();
-      return pn === "비고";
-    });
-    if (it) return normalizeCodeItem(it);
-  }
+  // 2) 품명/상품명으로 찾기 ("비고")
+  it = cm.find(x => {
+    const pn = (x?.name || x?.productName || x?.["품명"] || x?.Product || "").toString().trim();
+    return pn === "비고" || pn === "[비          고]";
+  });
+  if (it) return normalizeCodeItem(it);
 
   return null;
 }
@@ -3013,15 +3017,16 @@ ensureScrollIntoView(codeInput);
 function normalizeCodeItem(it) {
   return {
     code: it.code ?? it.Code ?? "",
-    productName: it.productName ?? it["품명"] ?? it.Product ?? "",
-    specs: it.specs ?? it["규격"] ?? it.Specifications ?? "",
+    productName: it.productName ?? it.name ?? it["품명"] ?? it.Product ?? "",
+    specs: it.specs ?? it.spec ?? it["규격"] ?? it.Specifications ?? "",
     unit: it.unit ?? it["단위"] ?? it.Unit ?? "",
     surcharge: it.surcharge ?? it["할증"] ?? "",
-    convUnit: it.convUnit ?? it["환산단위"] ?? "",
+    convUnit: it.convUnit ?? it.convUnit ?? it["환산단위"] ?? "",
     convFactor: it.convFactor ?? it["환산계수"] ?? "",
     note: it.note ?? it["비고"] ?? ""
   };
 }
+
 
 
 
