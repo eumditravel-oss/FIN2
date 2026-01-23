@@ -3352,7 +3352,7 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
       }, true);
     }
 
-   } // ✅ initAppOnce() 끝
+   }; // ✅ initAppOnce() 끝
 
     // ✅ DOMContentLoaded 시 init (반드시 IIFE 내부, 함수 밖)
   if (document.readyState === "loading") {
