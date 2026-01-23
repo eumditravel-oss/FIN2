@@ -3263,6 +3263,77 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
       }, true);
     }
 
+
+   // -------------------------
+// Ctrl + Delete : 행 삭제(코드표/산출표) / 변수표는 셀 비움
+// -------------------------
+if ((e.key === "Delete" || e.key === "Del") && e.ctrlKey && !e.shiftKey && !e.altKey) {
+  const ae = document.activeElement;
+
+  // 1) 변수표(var): 현재 셀 비움 (기존 attachGridNav에도 있지만 전역에서 확실히)
+  if (ae instanceof HTMLInputElement && ae.dataset.grid === "var") {
+    if (ae.readOnly) return;
+    e.preventDefault();
+    e.stopPropagation();
+    ae.value = "";
+    ae.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
+
+  // 2) 코드표(code): 현재 행 삭제
+  if (ae instanceof HTMLInputElement && ae.dataset.grid === "code") {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const row = Number(ae.dataset.row || 0);
+
+    // ✅ 고정 비고행(0행) 삭제 방지
+    if (row === 0 && isRemarkCode(state.codeMaster?.[0]?.code)) {
+      alert("비고 고정 행은 삭제할 수 없습니다.");
+      return;
+    }
+
+    if (!confirm(`코드표 ${row + 1}행을 삭제할까요?`)) return;
+
+    state.codeMaster.splice(row, 1);
+    ensureRemarkCodeMasterTop(); // 최상단 고정 유지
+    saveState();
+    render();
+
+    raf2(() => {
+      const nextRow = clamp(row, 0, state.codeMaster.length - 1);
+      const target = document.querySelector(`input[data-grid="code"][data-row="${nextRow}"][data-col="0"]`);
+      safeFocus(target);
+      ensureScrollIntoView(target);
+    });
+    return;
+  }
+
+  // 3) 산출표(calc): 현재/선택 행 삭제
+  if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc") {
+    const tabId = ae.dataset.tab || state.activeTab;
+    const curRow = Number(ae.dataset.row || 0);
+
+    const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+    if (!isCalc) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const selected = __getSelectedCalcRows(tabId);
+    const targets = selected.length ? selected : [curRow];
+
+    if (!confirm(`선택된 ${targets.length}행을 삭제할까요?`)) return;
+
+    deleteCalcRows(tabId, targets);
+    __calcMultiClear();
+    return;
+  }
+
+  // 그 외: 기본동작 유지
+}
+
+
   // ✅ 4) 최초 UI 반영
   updateProjectHeaderUI();
   render();
