@@ -3359,7 +3359,7 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
     document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
   } else {
     initAppOnce();
-  }})(); // ✅ IIFE 끝
+  })(); // ✅ IIFE 끝
 
 
 
