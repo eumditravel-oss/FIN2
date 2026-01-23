@@ -1218,25 +1218,36 @@ input.cell.block-selected{
 
 
 /* =========================
-   ✅ 비고(remark) 행 강조 스타일
+   ✅ 비고(ZZZ) 행: tr에 클래스 붙으면 무조건 회색
 ========================= */
+tr.calc-remark-row td,
+tr.calc-remark-row .cell,
 tr.remark-row td,
-tr.remark-row input.cell{
-  background: rgba(120,120,120,0.12) !important;
+tr.remark-row .cell{
+  background: #f1f1f1 !important;
+  color: #8a8a8a !important;
+  border-color: #ddd !important;
 }
 
-tr.remark-row input.cell{
-  font-weight: 800;
+/* readonly도 더 또렷하게 */
+tr.calc-remark-row .cell.readonly,
+tr.remark-row .cell.readonly{
+  opacity: 1 !important;
 }
 
-tr.remark-row input.cell.readonly{
-  opacity: 1; /* readonly라도 더 또렷하게 */
+/* placeholder도 흐리게 */
+tr.calc-remark-row .cell::placeholder,
+tr.remark-row .cell::placeholder{
+  color: #b0b0b0 !important;
 }
 
-tr.remark-row td:first-child{
-  color: rgba(60,60,60,0.9);
-  font-weight: 900;
+/* 체크박스/셀렉트도 통일 (있다면) */
+tr.calc-remark-row select,
+tr.remark-row select{
+  background: #f1f1f1 !important;
+  color: #8a8a8a !important;
 }
+
 
 
 /* =========================
