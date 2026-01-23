@@ -3168,21 +3168,8 @@ function __getCellKey(input) {
 
 function __sameContext(a, b) {
   if (!a || !b) return false;
-  // code grid는 tab이 없으니 grid만 같으면 OK
   if (a.grid === "code" && b.grid === "code") return true;
   return a.grid === b.grid && a.tab === b.tab;
-}
-
-function __queryCellByKey(key) {
-  if (!key?.grid) return null;
-  if (key.grid === "code") {
-    return document.querySelector(
-      `input.cell[data-grid="code"][data-row="${key.row}"][data-col="${key.col}"]`
-    );
-  }
-  return document.querySelector(
-    `input.cell[data-grid="${key.grid}"][data-tab="${key.tab}"][data-row="${key.row}"][data-col="${key.col}"]`
-  );
 }
 
 function __queryAllCellsInContext(key) {
@@ -3207,6 +3194,18 @@ function __setAnchor(input) {
   __finBlockSel.anchor = k;
 }
 
+function __applyCellBlockSelection(anchorKey, targetKey) {
+  if (!anchorKey?.grid || !targetKey?.grid) return;
+  if (!__sameContext(anchorKey, targetKey)) return;
+
+  const cells = __queryAllCellsInContext(anchorKey);
+  if (!cells.length) return;
+
+  const r1 = Math.min(anchorKey.row, targetKey.row);
+  const r2 = Math.max(anchorKey.row, targetKey.row);
+  const c1 = Math.min(anchorKey.col, targetKey.col);
+  const c2 = Math.max(anchorKey.col, targetKey.col);
+
   for (const inp of cells) {
     const k = __getCellKey(inp);
     if (k.row >= r1 && k.row <= r2 && k.col >= c1 && k.col <= c2) {
@@ -3225,128 +3224,90 @@ function __setAnchor(input) {
 function __handleNormalClickCell(input) {
   if (!(input instanceof HTMLInputElement)) return;
 
-  const key = __getCellKey(input);
+  const k = __getCellKey(input);
+  if (!k.grid) return;
 
-  // ✅ calc는 위에서 별도 처리(행 선택)하므로 여기선 셀블록 로직 제외
-  if (key.grid === "calc") return;
-
-  // ✅ 컨텍스트가 바뀌면 기존 블록 선택 해제
-  const prev = __finBlockSel.anchor;
-  if (!prev || !__sameContext(prev, key)) {
-    __clearCellBlockSelection();
-  }
-
-  // ✅ 일반 클릭은 "앵커만" 갱신
+  // 같은 컨텍스트에서만 앵커 갱신
   __setAnchor(input);
 }
 
 /* =========================================================
-   ✅ Shift+Click으로 셀 블록 지정 이벤트 (최종)
-   - (이미 initAppOnce 내부에서 mousedown 바인딩을 하고 있으므로)
-     여기서는 "혹시 누락될 때"를 대비한 안전장치만 둠
+   ✅ Shift + Click / Click 바인딩(1회)
+   - calc는 위에서 별도 처리(행 선택)하므로 여기서는 제외
    ========================================================= */
-if (!window.__finBlockSelectionBoundFinal) {
-  window.__finBlockSelectionBoundFinal = true;
+if (!window.__finCellBlockBound2) {
+  window.__finCellBlockBound2 = true;
 
-  document.addEventListener(
-    "mousedown",
-    (e) => {
-      const t = e.target;
-      const input = t?.closest?.("input.cell");
-      if (!(input instanceof HTMLInputElement)) return;
+  document.addEventListener("mousedown", (e) => {
+    const t = e.target;
+    const input = t?.closest?.("input.cell");
+    if (!(input instanceof HTMLInputElement)) return;
 
-      const grid = input.dataset.grid || "";
-      const tabId = input.dataset.tab || "";
-      const row = Number(input.dataset.row || 0);
+    const grid = input.dataset.grid || "";
+    const tabId = input.dataset.tab || "";
 
-      // ✅ calc는 위에서 행 선택으로 처리하므로 여기서 제외
-      if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
+    // ✅ calc는 기존 로직(행 선택/Shift+행범위)을 그대로 사용
+    if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
+      return;
+    }
+
+    // ✅ Shift+클릭: 셀 블록 선택
+    if (e.shiftKey) {
+      e.preventDefault();
+
+      const targetKey = __getCellKey(input);
+
+      // anchor 없거나 컨텍스트 다르면 현재를 anchor로
+      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
+        __finBlockSel.anchor = targetKey;
+        __applyCellBlockSelection(targetKey, targetKey);
         return;
       }
 
-      // ✅ Shift + click : 셀 블록(사각형) 지정
-      if (e.shiftKey) {
-        e.preventDefault();
+      __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
+      return;
+    }
 
-        const curKey = __getCellKey(input);
-        if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, curKey)) {
-          // 앵커가 없거나 컨텍스트가 다르면 현재 셀을 앵커로 시작
-          __setAnchor(input);
-          __clearCellBlockSelection();
-          input.classList.add("block-selected");
-          return;
-        }
-
-        __applyRectSelection(__finBlockSel.anchor, curKey);
-        return;
-      }
-
-      // ✅ 일반 클릭 : 앵커 갱신(필요 시 기존 블록 해제)
-      __handleNormalClickCell(input);
-    },
-    true
-  );
+    // ✅ 일반 클릭: 앵커 갱신(원하면 블록 유지, 해제는 Ctrl+Z로)
+    __handleNormalClickCell(input);
+  }, true);
 }
 
 /* =========================================================
-   ✅ (선택) Ctrl+C: 블록 선택된 셀들을 TSV로 클립보드 복사
-   - 원치 않으면 삭제해도 됨
+   ✅ Ctrl+Z : 블록 선택 / 행 선택 해제 (1회 바인딩)
+   - 선택이 있을 때만 가로채고
+   - 선택이 없으면 기본 Undo 동작 유지
    ========================================================= */
-if (!window.__finBlockCopyBound) {
-  window.__finBlockCopyBound = true;
+if (!window.__finClearSelectionHotkeyBound) {
+  window.__finClearSelectionHotkeyBound = true;
 
-  document.addEventListener("keydown", async (e) => {
-    if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "z" || e.key === "Z"))) return;
 
-    const selected = Array.from(document.querySelectorAll("input.cell.block-selected"));
-    if (!selected.length) return; // 선택 없으면 기본 copy 동작 유지
+    const hasCellBlock = !!document.querySelector("input.cell.block-selected");
+    const hasCalcMulti = !!__calcMulti && __calcMulti.active;
 
-    // input 편집 중이면 기본 copy 우선
-    const ae = document.activeElement;
-    if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
+    // ✅ 선택이 없으면 기본 Undo 그대로
+    if (!hasCellBlock && !hasCalcMulti) return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    // 좌표 정렬
-    const keys = selected.map((inp) => ({ inp, ...__getCellKey(inp) }));
-    keys.sort((a, b) => (a.row - b.row) || (a.col - b.col));
-
-    // 범위 계산
-    const r1 = Math.min(...keys.map(k => k.row));
-    const r2 = Math.max(...keys.map(k => k.row));
-    const c1 = Math.min(...keys.map(k => k.col));
-    const c2 = Math.max(...keys.map(k => k.col));
-
-    // 값 매트릭스 생성
-    const map = new Map();
-    keys.forEach(k => map.set(`${k.row},${k.col}`, k.inp.value ?? ""));
-
-    const lines = [];
-    for (let r = r1; r <= r2; r++) {
-      const rowVals = [];
-      for (let c = c1; c <= c2; c++) {
-        rowVals.push(map.get(`${r},${c}`) ?? "");
-      }
-      lines.push(rowVals.join("\t"));
+    if (hasCellBlock) {
+      __clearCellBlockSelection();
+      __finBlockSel.anchor = null;
     }
 
-    const text = lines.join("\n");
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // clipboard 권한 실패 대비 fallback
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
+    if (hasCalcMulti) {
+      __calcMultiClear();
+      const tabId = state.activeTab;
+      if (tabId === "steel" || tabId === "steel_sub" || tabId === "support") {
+        __applyCalcRowSelectionStyles(tabId);
+      }
     }
   }, true);
 }
+
 
 /* =========================================================
    ✅ initAppOnce 실제 호출(HTML에서 defer 로딩이면 안전)
