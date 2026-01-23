@@ -2844,17 +2844,12 @@ function initAppOnce() {
 // - ❌ 기존 블록 해제 금지
 // - ✅ 앵커(row)만 이동
 if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
-  // 블록이 없는 경우만 새로 시작
-  if (!__calcMultiIsSameContext(tabId)) {
-    __calcMultiBegin(tabId, row);
-  } else {
-    // 블록이 이미 있으면 → 해제하지 말고 앵커만 갱신
-    __calcMulti.anchorRow = row;
-  }
-
-  __applyCalcRowSelectionStyles(tabId);
+  // ✅ 블록 시작 금지
+  // 👉 anchor만 갱신 (Shift 클릭 기준점)
+  __calcMulti.anchorRow = row;
   return;
 }
+
 
 
   // 그 외는 기존 셀 블록 로직
