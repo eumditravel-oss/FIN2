@@ -151,8 +151,10 @@
   }
 
    function isRemarkRowObj(r) {
+  // r이 산출행 객체일 때 "비고" 행인지 판정 (원하면 조건 보강)
+  return isRemarkCode(r?.code) || normalizeRemarkName(r?.name) === normalizeRemarkName(REMARK_NAME);
+}
 
-  function getRemarkCodeMasterRow() {
     return {
       code: REMARK_CODE,
       name: REMARK_NAME,
@@ -1301,7 +1303,8 @@ const CODE_COL_INDEX = {
       ])
     ]);
 
-    c    const tbody = el("tbody", {}, []);
+    const tbody = el("tbody", {}, []);
+
     sec.rows.forEach((r, i) => {
       const tr = el("tr", { class: hasAtLeastFiveZ(r.code) ? "z5-row" : "" }, [
         el("td", {}, [String(i + 1)]),
