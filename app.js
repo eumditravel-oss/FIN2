@@ -151,14 +151,13 @@ function isRemarkCode(code) {
 }
 
 function isRemarkRowObj(r) {
-  // r이 산출행 객체일 때 "비고" 행인지 판정 (원하면 조건 보강)
   return (
     isRemarkCode(r?.code) ||
     normalizeRemarkName(r?.name) === normalizeRemarkName(REMARK_NAME)
   );
 }
 
-// ✅ (FIX) 비고 코드마스터 행 생성 함수가 있어야 함
+// ✅ 비고 코드마스터 행 생성
 function getRemarkCodeMasterRow() {
   return {
     code: REMARK_CODE,
@@ -175,13 +174,10 @@ function getRemarkCodeMasterRow() {
 // ✅ codeMaster 최상단에 비고 고정코드 강제 + 중복 제거
 function ensureRemarkCodeMasterTop() {
   if (!state || !Array.isArray(state.codeMaster)) state.codeMaster = [];
-
-  // 기존 동일 코드 제거
   state.codeMaster = state.codeMaster.filter(r => !isRemarkCode(r?.code));
-
-  // 최상단에 삽입
   state.codeMaster.unshift(getRemarkCodeMasterRow());
 }
+
 
 
 
@@ -423,9 +419,10 @@ function ensureRemarkCodeMasterTop() {
   })();
 
   let state = activeProjectId ? loadProjectState(activeProjectId) : deepClone(DEFAULT_STATE);
-     // ✅ 항상 비고 고정코드 최상단 강제
-  ensureRemarkCodeMasterTop();
-  saveState();
+// ✅ 항상 비고 고정코드 최상단 강제
+ensureRemarkCodeMasterTop();
+saveState();
+
 
 
   // ✅ (v13.2) 구분명 리스트 클릭/↑↓ 후 렌더링되면 포커스 복원
@@ -734,8 +731,7 @@ function __calcMultiToggleRow(tabId, row) {
 
   const CODE_COL_WEIGHTS = [0.6, 2.2, 2.2, 0.6, 0.6, 0.7, 0.7, 1.2, 0.6];
 
-// ✅ [추가] codeMaster(코드표) 필드 → 실제 열 번호 매핑 (0~8)
-// 0:code, 1:name, 2:spec, 3:unit, 4:surcharge, 5:convUnit, 6:convFactor, 7:note, 8:action(삭제버튼)
+// codeMaster(코드표) 열 번호(0~8)
 const CODE_COL_INDEX = {
   code: 0,
   name: 1,
@@ -747,6 +743,21 @@ const CODE_COL_INDEX = {
   note: 7,
   action: 8,
 };
+
+// calc(산출표) 실제 열 번호(No 포함 0~10)
+const CALC_COL_INDEX = {
+  code: 1,
+  name: 2,
+  spec: 3,
+  unit: 4,
+  formula: 5,
+  value: 6,
+  surchargePct: 7,
+  convUnit: 8,
+  convFactor: 9,
+  converted: 10,
+};
+
 
   /***************
    * ✅ Help
@@ -871,38 +882,39 @@ const CODE_COL_INDEX = {
     const tbody = el("tbody", {}, []);
 
       state.codeMaster.forEach((row, idx) => {
-    const isFixed = (idx === 0 && isRemarkCode(row.code));
+  const isFixed = (idx === 0 && isRemarkCode(row.code));
 
-    const tr = el("tr", { class: isFixed ? "remark-row" : "" }, [
-      tdInput("codeMaster", idx, "code", row.code, { readonly: isFixed }),
-      tdInput("codeMaster", idx, "name", row.name, { readonly: isFixed }),
-      tdInput("codeMaster", idx, "spec", row.spec, { readonly: isFixed }),
-      tdInput("codeMaster", idx, "unit", row.unit, { readonly: isFixed }),
-      tdInput("codeMaster", idx, "surcharge", row.surcharge ?? "", { readonly: isFixed }),
-      tdInput("codeMaster", idx, "convUnit", row.convUnit, { readonly: isFixed }),
-      tdInput("codeMaster", idx, "convFactor", row.convFactor ?? "", { readonly: isFixed }),
-      tdInput("codeMaster", idx, "note", row.note, { readonly: isFixed }),
-      el("td", {}, [
-        el("button", {
-          class: "smallbtn",
-          disabled: isFixed ? "disabled" : null,
-          onclick: () => {
-            if (isFixed) return;
+  const tr = el("tr", { class: isFixed ? "remark-row" : "" }, [
+    tdInput("codeMaster", idx, "code", row.code, { readonly: isFixed }),
+    tdInput("codeMaster", idx, "name", row.name, { readonly: isFixed }),
+    tdInput("codeMaster", idx, "spec", row.spec, { readonly: isFixed }),
+    tdInput("codeMaster", idx, "unit", row.unit, { readonly: isFixed }),
+    tdInput("codeMaster", idx, "surcharge", row.surcharge ?? "", { readonly: isFixed }),
+    tdInput("codeMaster", idx, "convUnit", row.convUnit, { readonly: isFixed }),
+    tdInput("codeMaster", idx, "convFactor", row.convFactor ?? "", { readonly: isFixed }),
+    tdInput("codeMaster", idx, "note", row.note, { readonly: isFixed }),
+    el("td", {}, [
+      el("button", {
+        class: "smallbtn",
+        disabled: isFixed ? "disabled" : null,
+        onclick: () => {
+          if (isFixed) return;
 
-            state.codeMaster.splice(idx, 1);
+          state.codeMaster.splice(idx, 1);
 
-            // ✅ 삭제 후에도 최상단 고정 보장
-            ensureRemarkCodeMasterTop();
+          // ✅ 삭제 후에도 최상단 고정 보장
+          ensureRemarkCodeMasterTop();
 
-            saveState();
-            render();
-          }
-        }, [isFixed ? "고정" : "삭제"])
-      ])
-    ]);
+          saveState();
+          render();
+        }
+      }, [isFixed ? "고정" : "삭제"])
+    ])
+  ]);
 
-    tbody.appendChild(tr);
-  });
+  tbody.appendChild(tr);
+});
+
 
 
     table.appendChild(thead);
@@ -1466,7 +1478,7 @@ if (e.key === "Escape") {
   const bucket = state[tabId];
   const sec = bucket.sections[bucket.activeSection];
 
-  // ✅ data-col은 무조건 “실제 테이블 열 번호”로 고정 (field 기반)
+  // ✅ data-col은 무조건 “실제 테이블 열 번호”로 고정
   const dataCol = String(CALC_COL_INDEX[field] ?? 0);
 
   const input = el("input", {
@@ -1477,7 +1489,6 @@ if (e.key === "Escape") {
     dataset: { grid: "calc", tab: tabId, row: String(row), col: dataCol, field },
 
     onfocus: () => {
-      // 다중선택 표시 갱신
       if (__calcMulti.active && __calcMultiIsSameContext(tabId)) {
         __applyCalcRowSelectionStyles(tabId);
       }
@@ -1487,7 +1498,6 @@ if (e.key === "Escape") {
       const t = e.target;
       if (!(t instanceof HTMLInputElement)) return;
 
-      // F2: 편집모드 플래그
       if (e.key === "F2") {
         if (t.readOnly) return;
         e.preventDefault();
@@ -1496,7 +1506,6 @@ if (e.key === "Escape") {
         return;
       }
 
-      // Enter: 편집모드 종료
       if (e.key === "Enter") {
         if (t.dataset.editing === "1") {
           e.preventDefault();
@@ -1519,6 +1528,7 @@ if (e.key === "Escape") {
   input.addEventListener("blur", () => { delete input.dataset.editing; });
   return el("td", {}, [input]);
 }
+
 
 
   function refreshCalcComputed(tabId) {
@@ -2183,12 +2193,13 @@ function importFromExcelFile(file) {
       }
 
             // ✅ 비고 고정코드는 가져오기에서 덮어쓰지 않도록 강제 유지
-      const filtered = next.filter(r => !isRemarkCode(r?.code));
-      state.codeMaster = filtered;
-      ensureRemarkCodeMasterTop();
+const filtered = next.filter(r => !isRemarkCode(r?.code));
+state.codeMaster = filtered;
+ensureRemarkCodeMasterTop();
 
-      saveState();
-      render();
+saveState();
+render();
+
 
 
       alert(`코드 ${next.length}개를 가져왔습니다. (시트: ${sheetName})`);
