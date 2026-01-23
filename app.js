@@ -2797,8 +2797,8 @@ if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === 
     
   }
 
-   /* ============================
-   ✅ Global Hotkeys (Ctrl+., Ctrl+B, Ctrl+F3)
+      /* ============================
+   ✅ Global Hotkeys (Ctrl+., Ctrl+B, Ctrl+F3, Ctrl+F10)
    - 프로젝트 선택된 상태에서만 작동
    - input/textarea 편집중에는 일부 단축키 무시
 ============================ */
@@ -2881,9 +2881,9 @@ function bindGlobalHotkeysOnce() {
       return;
     }
 
-        // -------------------------
+    // -------------------------
     // Ctrl + F10 : (산출탭) "비고행" 아래에 1행 추가
-    // ✅ 개선: 포커스가 어디에 있든(심지어 input이 아니어도) 현재 구분의 비고행을 찾아 그 아래에 삽입
+    // ✅ 개선: 포커스가 어디에 있든 현재 구분의 비고행을 찾아 그 아래에 삽입
     //   - 현재 포커스 행이 비고행이면 그 비고행 아래
     //   - 아니면 구분 내 첫 번째 비고행 아래
     //   - 비고행이 없으면 알림 후 종료
@@ -2901,9 +2901,7 @@ function bindGlobalHotkeysOnce() {
       if (!sec || !Array.isArray(sec.rows)) return;
 
       // 1) 현재 포커스가 calc input이면 그 row를 우선 후보로
-      const ae = document.activeElement;
       let focusRow = null;
-
       if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
         focusRow = clamp(Number(ae.dataset.row || 0), 0, Math.max(0, sec.rows.length - 1));
       }
@@ -2931,6 +2929,10 @@ function bindGlobalHotkeysOnce() {
       addRows(tabId, 1, remarkIdx);
       return;
     }
+
+  }, true); // ✅ keydown 리스너 닫기
+} // ✅ bindGlobalHotkeysOnce 닫기
+
 
 
 
