@@ -2881,8 +2881,12 @@ function bindGlobalHotkeysOnce() {
       return;
     }
 
-    // -------------------------
+        // -------------------------
     // Ctrl + F10 : (산출탭) "비고행" 아래에 1행 추가
+    // ✅ 개선: 포커스가 어디에 있든(심지어 input이 아니어도) 현재 구분의 비고행을 찾아 그 아래에 삽입
+    //   - 현재 포커스 행이 비고행이면 그 비고행 아래
+    //   - 아니면 구분 내 첫 번째 비고행 아래
+    //   - 비고행이 없으면 알림 후 종료
     // -------------------------
     if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "F10")) {
       e.preventDefault();
@@ -2892,22 +2896,42 @@ function bindGlobalHotkeysOnce() {
       const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
       if (!isCalc) return;
 
-      if (!(ae instanceof HTMLInputElement)) return;
-      if (!(ae.dataset.grid === "calc" && ae.dataset.tab === tabId)) return;
-
-      const curRow = Number(ae.dataset.row || 0);
-
       const bucket = state[tabId];
       const sec = bucket.sections[bucket.activeSection];
-      const rr = sec.rows[curRow];
+      if (!sec || !Array.isArray(sec.rows)) return;
 
-      if (!isRemarkRowObj(rr)) return;
+      // 1) 현재 포커스가 calc input이면 그 row를 우선 후보로
+      const ae = document.activeElement;
+      let focusRow = null;
 
-      addRows(tabId, 1, curRow);
+      if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
+        focusRow = clamp(Number(ae.dataset.row || 0), 0, Math.max(0, sec.rows.length - 1));
+      }
+
+      // 2) 삽입 기준 비고행 index 결정
+      let remarkIdx = -1;
+
+      // (a) 포커스 행이 비고행이면 그 아래
+      if (focusRow != null) {
+        const rr = sec.rows[focusRow];
+        if (isRemarkRowObj(rr)) remarkIdx = focusRow;
+      }
+
+      // (b) 아니면 구분 내 첫 번째 비고행 아래
+      if (remarkIdx < 0) {
+        remarkIdx = sec.rows.findIndex((r) => isRemarkRowObj(r));
+      }
+
+      if (remarkIdx < 0) {
+        alert("현재 구분에 [비고] 행이 없습니다.\n비고행(코드: ZZZZZZZZZZZZZZZZZ)을 먼저 추가하거나, 비고행을 포함해 주세요.");
+        return;
+      }
+
+      // 3) 비고행 아래에 1행 추가
+      addRows(tabId, 1, remarkIdx);
       return;
     }
-  }, true);
-}
+
 
 
        
