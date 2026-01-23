@@ -857,7 +857,7 @@ const CALC_COL_INDEX = {
     return el("div", { class: "panel" }, [panelHeader, scroll]);
   }
 
-  function buildCodeMasterTable() {
+    function buildCodeMasterTable() {
     const table = el("table", { class: "code-table" }, []);
     table.style.tableLayout = "fixed";
     table.style.width = "100%";
@@ -923,21 +923,8 @@ const CALC_COL_INDEX = {
     return table;
   }
 
-    // ✅ Calc table 실제 열 번호 (No 포함 0~10 기준)
-  // 0:No, 1:code, 2:name, 3:spec, 4:unit, 5:formula, 6:value, 7:surchargePct, 8:convUnit, 9:convFactor, 10:converted
-  const CALC_COL_INDEX = {
-    code: 1,
-    name: 2,
-    spec: 3,
-    unit: 4,
-    formula: 5,
-    value: 6,
-    surchargePct: 7,
-    convUnit: 8,
-    convFactor: 9,
-    converted: 10,
-  };
-
+  // ✅ 여기서 CALC_COL_INDEX를 "재선언"하지 않는다.
+  // ✅ 위쪽(이미 존재하는) CALC_COL_INDEX를 그대로 사용한다.
 
   function tdInput(scope, rowIndex, field, value, opts = {}) {
     const ds =
@@ -966,6 +953,7 @@ const CALC_COL_INDEX = {
 
     return el("td", {}, [input]);
   }
+
 
   function addCodeRows(n, insertAfterRow = null) {
     const idx = insertAfterRow == null ? (state.codeMaster.length - 1) : insertAfterRow;
