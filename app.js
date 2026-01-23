@@ -2804,20 +2804,15 @@ if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === 
 ============================ */
 let __globalHotkeysBound = false;
 
-
 function bindGlobalHotkeysOnce() {
   if (__globalHotkeysBound) return;
   __globalHotkeysBound = true;
 
   document.addEventListener("keydown", (e) => {
-    // 프로젝트 미선택이면 단축키 동작시키지 않음(버튼도 disabled 상태)
+    // 프로젝트 미선택이면 단축키 동작 X
     if (!activeProjectId) return;
 
     const ae = document.activeElement;
-    const isEditing =
-      ae instanceof HTMLInputElement ||
-      ae instanceof HTMLTextAreaElement ||
-      (ae && ae.getAttribute && ae.getAttribute("contenteditable") === "true");
 
     // -------------------------
     // Ctrl + . : 코드 선택창
@@ -2827,52 +2822,43 @@ function bindGlobalHotkeysOnce() {
       e.stopPropagation();
 
       const btn = document.getElementById("btnOpenPicker");
-      // btn이 disabled가 아니면 클릭 트리거(기존 로직 그대로 활용)
       if (btn && !btn.disabled) btn.click();
       else alert("프로젝트를 먼저 선택(열기)해 주세요.");
       return;
     }
 
     // -------------------------
-    // Ctrl + B : (현재 탭 기준) '다중선택' 토글
-    // - 기존 코드에서는 'Shift+B'로 구현돼 있으니
-    //   Ctrl+B도 같은 동작을 하도록 매핑
+    // Ctrl + B : 현재 행 선택 토글
     // -------------------------
     if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "b" || e.key === "B")) {
-  e.preventDefault();
-  e.stopPropagation();
+      e.preventDefault();
+      e.stopPropagation();
 
-  const tabId = state.activeTab;
-  const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
-  if (!isCalc) return;
+      const tabId = state.activeTab;
+      const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+      if (!isCalc) return;
 
-  // 현재 포커스된 calc 셀 row 기준
-  let curRow = 0;
-  if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
-    curRow = Number(ae.dataset.row || 0);
-  }
+      let curRow = 0;
+      if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
+        curRow = Number(ae.dataset.row || 0);
+      }
 
-  // ✅ Ctrl+B = 현재 행 선택 토글 (추가/해제)
-  __calcMultiToggleRow(tabId, curRow);
-  __applyCalcRowSelectionStyles(tabId);
-  return;
-}
-
+      __calcMultiToggleRow(tabId, curRow);
+      __applyCalcRowSelectionStyles(tabId);
+      return;
+    }
 
     // -------------------------
-    // Ctrl + F3 : 현재 행 아래 행 추가
-    // Shift + Ctrl + F3 : +10행
-    // - 코드탭(code) / 산출탭(steel/steel_sub/support) / 변수표(var) 모두 지원
+    // Ctrl + F3 : 행 추가 / Shift+Ctrl+F3 : +10행
     // -------------------------
-    if (e.ctrlKey && e.key === "F3") {
-      // 입력 중이어도 행 추가는 허용(Excel 느낌)
+    if (e.ctrlKey && (e.key === "F3")) {
       e.preventDefault();
       e.stopPropagation();
 
       const n = e.shiftKey ? 10 : 1;
       const tabId = state.activeTab;
 
-      // 1) 코드탭
+      // 코드탭
       if (tabId === "code") {
         let insertAfter = null;
         if (ae instanceof HTMLInputElement && ae.dataset.grid === "code") {
@@ -2882,30 +2868,23 @@ function bindGlobalHotkeysOnce() {
         return;
       }
 
-      // 2) 산출탭(steel/steel_sub/support)
+      // 산출탭
       if (tabId === "steel" || tabId === "steel_sub" || tabId === "support") {
         let insertAfter = null;
-
-        // calc 셀에 포커스면 그 row 아래로
         if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
           insertAfter = Number(ae.dataset.row || 0);
         }
-
         addRows(tabId, n, insertAfter);
         return;
       }
 
-      // 3) 집계탭/기타에서는 무시
       return;
     }
-  }, true);
-}
 
-       // -------------------------
-    // Ctrl + F10 : (산출탭) 비고행 아래에 1행 추가
-    // - 현재 포커스 행이 비고행(REMARK_NAME/REMARK_CODE)일 때만 동작
     // -------------------------
-    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "F10") {
+    // Ctrl + F10 : (산출탭) "비고행" 아래에 1행 추가
+    // -------------------------
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "F10")) {
       e.preventDefault();
       e.stopPropagation();
 
@@ -2913,22 +2892,25 @@ function bindGlobalHotkeysOnce() {
       const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
       if (!isCalc) return;
 
-      const ae2 = document.activeElement;
-      if (!(ae2 instanceof HTMLInputElement)) return;
-      if (!(ae2.dataset.grid === "calc" && ae2.dataset.tab === tabId)) return;
+      if (!(ae instanceof HTMLInputElement)) return;
+      if (!(ae.dataset.grid === "calc" && ae.dataset.tab === tabId)) return;
 
-      const curRow = Number(ae2.dataset.row || 0);
+      const curRow = Number(ae.dataset.row || 0);
 
       const bucket = state[tabId];
       const sec = bucket.sections[bucket.activeSection];
       const rr = sec.rows[curRow];
 
-      // ✅ "비고" 행일 때만 아래로 1행 추가
       if (!isRemarkRowObj(rr)) return;
 
       addRows(tabId, 1, curRow);
       return;
     }
+  }, true);
+}
+
+
+       
 
 
 
