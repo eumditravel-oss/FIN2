@@ -2922,10 +2922,14 @@ function bindGlobalHotkeysOnce() {
         }
 
         codeInput.value = REMARK_CODE;
-        codeInput.dispatchEvent(new Event("input", { bubbles: true }));
-        codeInput.dispatchEvent(new Event("change", { bubbles: true }));
-        safeFocus(codeInput);
-        ensureScrollIntoView(codeInput);
+codeInput.dispatchEvent(new Event("input", { bubbles: true }));
+codeInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+syncRemarkRowFromCodeInput(codeInput);   // ✅ 추가: 비고행 회색 처리 클래스 부여
+
+safeFocus(codeInput);
+ensureScrollIntoView(codeInput);
+
       });
 
       return;
