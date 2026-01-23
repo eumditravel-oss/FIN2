@@ -3219,146 +3219,154 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
     function __handleShiftClickCell(input) {
       if (!(input instanceof HTMLInputElement)) return;
 
-      // ✅ calc는 행선택 로직이 전담하므로 여기서 제외
+            // ✅ calc는 행선택 로직이 전담하므로 여기서는 제외
       const grid = input.dataset.grid || "";
       if (grid === "calc") return;
 
-      const targetKey = __getCellKey(input);
-
-      // anchor가 없거나, 컨텍스트가 다르면 현재를 anchor로 새로 잡음
-      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
-        __setAnchor(input);
+      // 컨텍스트가 바뀌면 기존 선택 해제
+      const k = __getCellKey(input);
+      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, k)) {
+        __clearCellBlockSelection();
       }
 
-      // 기존 선택을 지우고 사각형 블록 선택 적용
+      // 앵커만 갱신
+      __setAnchor(input);
+    }
+
+    function __handleShiftClickCell(input) {
+      if (!(input instanceof HTMLInputElement)) return;
+
+      const grid = input.dataset.grid || "";
+      // ✅ calc는 위에서 행선택 전용으로 처리하므로 셀블록은 제외
+      if (grid === "calc") return;
+
+      const targetKey = __getCellKey(input);
+      if (!targetKey.grid) return;
+
+      // anchor가 없거나 컨텍스트 다르면 anchor를 현재로 잡고 1셀만 선택
+      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
+        __clearCellBlockSelection();
+        __setAnchor(input);
+        input.classList.add("block-selected");
+        return;
+      }
+
+      // 기존 선택 해제 후, 사각형 블록 선택 적용
       __clearCellBlockSelection();
       __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
     }
 
-    // =========================================================
-    // ✅ Shift+클릭 셀 블록지정 바인딩 (code/var 전용)
-    // - calc는 위에서 별도 mousedown 핸들러가 처리하므로 여기서 제외
-    // =========================================================
+    // ✅ 선택 셀들을 TSV로 복사 (Ctrl+C)
+    function __copySelectedBlockToClipboard() {
+      const selected = Array.from(document.querySelectorAll("input.cell.block-selected"));
+      if (!selected.length) return false;
+
+      // 컨텍스트 기준(같은 grid/tab만)
+      const firstKey = __getCellKey(selected[0]);
+      const ctxCells = selected
+        .map(inp => ({ inp, k: __getCellKey(inp) }))
+        .filter(x => __sameContext(firstKey, x.k));
+
+      if (!ctxCells.length) return false;
+
+      // 범위 계산
+      const rows = ctxCells.map(x => x.k.row);
+      const cols = ctxCells.map(x => x.k.col);
+      const r1 = Math.min(...rows), r2 = Math.max(...rows);
+      const c1 = Math.min(...cols), c2 = Math.max(...cols);
+
+      // (row,col)->value 맵
+      const map = new Map();
+      ctxCells.forEach(({ inp, k }) => {
+        map.set(`${k.row},${k.col}`, inp.value ?? "");
+      });
+
+      // TSV 만들기
+      const lines = [];
+      for (let r = r1; r <= r2; r++) {
+        const line = [];
+        for (let c = c1; c <= c2; c++) {
+          line.push(String(map.get(`${r},${c}`) ?? ""));
+        }
+        lines.push(line.join("\t"));
+      }
+      const tsv = lines.join("\n");
+
+      try {
+        navigator.clipboard?.writeText(tsv);
+      } catch {
+        // fallback
+        const ta = document.createElement("textarea");
+        ta.value = tsv;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.top = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand("copy"); } catch {}
+        document.body.removeChild(ta);
+      }
+      return true;
+    }
+
+    // ✅ 블록선택/앵커 관련 전역 이벤트 바인딩(1회)
     if (!window.__finCellBlockBound2) {
       window.__finCellBlockBound2 = true;
 
+      // (1) 클릭 처리: Shift면 블록선택 / 아니면 앵커 갱신 + 필요 시 기존 해제
       document.addEventListener("mousedown", (e) => {
         const input = e.target?.closest?.("input.cell");
         if (!(input instanceof HTMLInputElement)) return;
 
-        const grid = input.dataset.grid || "";
+        // calc는 위에서 행선택 전용 mousedown이 처리하므로 여기서는 건너뜀
+        if ((input.dataset.grid || "") === "calc") return;
 
-        // ✅ 산출표(calc)는 행선택 전용 로직에서 처리
-        if (grid === "calc") return;
-
-        // Shift+클릭: 블록 지정
         if (e.shiftKey) {
-          e.preventDefault(); // 드래그 선택 방지
+          e.preventDefault(); // 드래그 방지
           __handleShiftClickCell(input);
-          return;
+        } else {
+          // 일반 클릭: 기존 선택 해제(선택이 있었고, 같은 컨텍스트가 아니면) + anchor 갱신
+          __handleNormalClickCell(input);
         }
+      }, true);
 
-        // 일반 클릭: 기존 블록 해제 + anchor 갱신
-        __handleNormalClickCell(input);
+      // (2) 바깥 클릭하면 블록선택 해제(원하면 유지도 가능하지만, 보통 해제하는 게 UX 좋음)
+      document.addEventListener("mousedown", (e) => {
+        const input = e.target?.closest?.("input.cell");
+        if (input) return; // 셀 클릭이면 유지
+        // 모달/버튼 클릭 등에서도 유지하고 싶으면 여기 조건 추가 가능
+        __clearCellBlockSelection();
+      }, true);
+
+      // (3) Ctrl+C : 선택된 블록이 있을 때만 가로채서 복사
+      document.addEventListener("keydown", (e) => {
+        if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
+
+        // input 편집 중이면(커서 선택 복사) 기본 동작 유지
+        const ae = document.activeElement;
+        if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
+
+        const hasBlock = !!document.querySelector("input.cell.block-selected");
+        if (!hasBlock) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        __copySelectedBlockToClipboard();
       }, true);
     }
 
+  } // ✅ initAppOnce() 블록 끝
 
-   // -------------------------
-// Ctrl + Delete : 행 삭제(코드표/산출표) / 변수표는 셀 비움
-// -------------------------
-if ((e.key === "Delete" || e.key === "Del") && e.ctrlKey && !e.shiftKey && !e.altKey) {
-  const ae = document.activeElement;
-
-  // 1) 변수표(var): 현재 셀 비움 (기존 attachGridNav에도 있지만 전역에서 확실히)
-  if (ae instanceof HTMLInputElement && ae.dataset.grid === "var") {
-    if (ae.readOnly) return;
-    e.preventDefault();
-    e.stopPropagation();
-    ae.value = "";
-    ae.dispatchEvent(new Event("input", { bubbles: true }));
-    return;
+  // ✅ DOMContentLoaded 시 init
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAppOnce);
+  } else {
+    initAppOnce();
   }
 
-  // 2) 코드표(code): 현재 행 삭제
-  if (ae instanceof HTMLInputElement && ae.dataset.grid === "code") {
-    e.preventDefault();
-    e.stopPropagation();
+})(); // ✅ IIFE 끝
 
-    const row = Number(ae.dataset.row || 0);
-
-    // ✅ 고정 비고행(0행) 삭제 방지
-    if (row === 0 && isRemarkCode(state.codeMaster?.[0]?.code)) {
-      alert("비고 고정 행은 삭제할 수 없습니다.");
-      return;
-    }
-
-    if (!confirm(`코드표 ${row + 1}행을 삭제할까요?`)) return;
-
-    state.codeMaster.splice(row, 1);
-    ensureRemarkCodeMasterTop(); // 최상단 고정 유지
-    saveState();
-    render();
-
-    raf2(() => {
-      const nextRow = clamp(row, 0, state.codeMaster.length - 1);
-      const target = document.querySelector(`input[data-grid="code"][data-row="${nextRow}"][data-col="0"]`);
-      safeFocus(target);
-      ensureScrollIntoView(target);
-    });
-    return;
-  }
-
-  // 3) 산출표(calc): 현재/선택 행 삭제
-  if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc") {
-    const tabId = ae.dataset.tab || state.activeTab;
-    const curRow = Number(ae.dataset.row || 0);
-
-    const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
-    if (!isCalc) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const selected = __getSelectedCalcRows(tabId);
-    const targets = selected.length ? selected : [curRow];
-
-    if (!confirm(`선택된 ${targets.length}행을 삭제할까요?`)) return;
-
-    deleteCalcRows(tabId, targets);
-    __calcMultiClear();
-    return;
-  }
-
-  // 그 외: 기본동작 유지
-}
-
-
-  // ✅ 4) 최초 UI 반영
-  updateProjectHeaderUI();
-  render();
-
-  // ✅ 5) 전역 단축키 바인딩 (Ctrl+., Ctrl+B, Ctrl+F3 등)
-  bindGlobalHotkeysOnce();
-
-  raf2(() => {
-    updateStickyVars();
-    applyPanelStickyTop();
-    updateViewFillHeight();
-    updateScrollHeights();
-  });
- // ✅ initAppOnce 닫기
-
-/* ============================
-   ✅ DOM Ready
-============================ */
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initAppOnce);
-} else {
-  initAppOnce();
-}
-
-})(); // ✅ IIFE 닫기
 
 
 
