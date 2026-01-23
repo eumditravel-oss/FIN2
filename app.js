@@ -3276,7 +3276,7 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
     updateViewFillHeight();
     updateScrollHeights();
   });
-} // ✅ initAppOnce 닫기
+ // ✅ initAppOnce 닫기
 
 /* ============================
    ✅ DOM Ready
