@@ -3207,65 +3207,163 @@ function __setAnchor(input) {
   __finBlockSel.anchor = k;
 }
 
-function __applyRectSelection(fromKey, toKey) {
-  if (!fromKey?.grid || !toKey?.grid) return;
-  if (!__sameContext(fromKey, toKey)) return;
-
-  const r1 = Math.min(fromKey.row, toKey.row);
-  const r2 = Math.max(fromKey.row, toKey.row);
-  const c1 = Math.min(fromKey.col, toKey.col);
-  const c2 = Math.max(fromKey.col, toKey.col);
-
-  // 성능/정확성을 위해: 해당 컨텍스트의 셀만 대상으로 필터
-  const cells = __queryAllCellsInContext(fromKey);
-
   for (const inp of cells) {
     const k = __getCellKey(inp);
     if (k.row >= r1 && k.row <= r2 && k.col >= c1 && k.col <= c2) {
       inp.classList.add("block-selected");
+    } else {
+      inp.classList.remove("block-selected");
     }
   }
 }
 
-/** 일반 클릭: 블록 유지 + 앵커만 갱신 */
+/* =========================================================
+   ✅ 일반 클릭 시 앵커만 갱신 + (필요 시) 기존 블록 선택 해제
+   - calc-grid는 이미 위에서 "행 선택 앵커" 로직으로 처리했으니
+     여기서는 셀 블록선택(코드/var 등) 전용으로 안전 처리
+   ========================================================= */
 function __handleNormalClickCell(input) {
   if (!(input instanceof HTMLInputElement)) return;
 
-  // ❌ 블록 해제하지 않음
-  // 앵커만 갱신 (다음 Shift+클릭 기준점)
+  const key = __getCellKey(input);
+
+  // ✅ calc는 위에서 별도 처리(행 선택)하므로 여기선 셀블록 로직 제외
+  if (key.grid === "calc") return;
+
+  // ✅ 컨텍스트가 바뀌면 기존 블록 선택 해제
+  const prev = __finBlockSel.anchor;
+  if (!prev || !__sameContext(prev, key)) {
+    __clearCellBlockSelection();
+  }
+
+  // ✅ 일반 클릭은 "앵커만" 갱신
   __setAnchor(input);
 }
 
+/* =========================================================
+   ✅ Shift+Click으로 셀 블록 지정 이벤트 (최종)
+   - (이미 initAppOnce 내부에서 mousedown 바인딩을 하고 있으므로)
+     여기서는 "혹시 누락될 때"를 대비한 안전장치만 둠
+   ========================================================= */
+if (!window.__finBlockSelectionBoundFinal) {
+  window.__finBlockSelectionBoundFinal = true;
 
-/** Shift+클릭: 앵커~현재 셀까지 사각형 블록 */
-function __handleShiftClickCell(input) {
-  if (!(input instanceof HTMLInputElement)) return;
+  document.addEventListener(
+    "mousedown",
+    (e) => {
+      const t = e.target;
+      const input = t?.closest?.("input.cell");
+      if (!(input instanceof HTMLInputElement)) return;
 
-  const cur = __getCellKey(input);
-  if (!cur.grid) return;
+      const grid = input.dataset.grid || "";
+      const tabId = input.dataset.tab || "";
+      const row = Number(input.dataset.row || 0);
 
-  // 앵커가 없거나 컨텍스트 다르면 -> 현재를 앵커로 설정 후 1셀만 선택
-  if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, cur)) {
-    __clearCellBlockSelection();
-    __setAnchor(input);
-    input.classList.add("block-selected");
-    return;
+      // ✅ calc는 위에서 행 선택으로 처리하므로 여기서 제외
+      if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
+        return;
+      }
+
+      // ✅ Shift + click : 셀 블록(사각형) 지정
+      if (e.shiftKey) {
+        e.preventDefault();
+
+        const curKey = __getCellKey(input);
+        if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, curKey)) {
+          // 앵커가 없거나 컨텍스트가 다르면 현재 셀을 앵커로 시작
+          __setAnchor(input);
+          __clearCellBlockSelection();
+          input.classList.add("block-selected");
+          return;
+        }
+
+        __applyRectSelection(__finBlockSel.anchor, curKey);
+        return;
+      }
+
+      // ✅ 일반 클릭 : 앵커 갱신(필요 시 기존 블록 해제)
+      __handleNormalClickCell(input);
+    },
+    true
+  );
+}
+
+/* =========================================================
+   ✅ (선택) Ctrl+C: 블록 선택된 셀들을 TSV로 클립보드 복사
+   - 원치 않으면 삭제해도 됨
+   ========================================================= */
+if (!window.__finBlockCopyBound) {
+  window.__finBlockCopyBound = true;
+
+  document.addEventListener("keydown", async (e) => {
+    if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
+
+    const selected = Array.from(document.querySelectorAll("input.cell.block-selected"));
+    if (!selected.length) return; // 선택 없으면 기본 copy 동작 유지
+
+    // input 편집 중이면 기본 copy 우선
+    const ae = document.activeElement;
+    if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 좌표 정렬
+    const keys = selected.map((inp) => ({ inp, ...__getCellKey(inp) }));
+    keys.sort((a, b) => (a.row - b.row) || (a.col - b.col));
+
+    // 범위 계산
+    const r1 = Math.min(...keys.map(k => k.row));
+    const r2 = Math.max(...keys.map(k => k.row));
+    const c1 = Math.min(...keys.map(k => k.col));
+    const c2 = Math.max(...keys.map(k => k.col));
+
+    // 값 매트릭스 생성
+    const map = new Map();
+    keys.forEach(k => map.set(`${k.row},${k.col}`, k.inp.value ?? ""));
+
+    const lines = [];
+    for (let r = r1; r <= r2; r++) {
+      const rowVals = [];
+      for (let c = c1; c <= c2; c++) {
+        rowVals.push(map.get(`${r},${c}`) ?? "");
+      }
+      lines.push(rowVals.join("\t"));
+    }
+
+    const text = lines.join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // clipboard 권한 실패 대비 fallback
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+  }, true);
+}
+
+/* =========================================================
+   ✅ initAppOnce 실제 호출(HTML에서 defer 로딩이면 안전)
+   - 이미 호출하고 있다면(HTML inline) 중복 호출 방지
+   ========================================================= */
+if (!window.__finAppBooted) {
+  window.__finAppBooted = true;
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => initAppOnce(), { once: true });
+  } else {
+    initAppOnce();
   }
-
-  // 같은 컨텍스트면 사각형 선택
-  __clearCellBlockSelection();
-  __applyRectSelection(__finBlockSel.anchor, cur);
 }
 
+})(); // ✅ IIFE 닫기 (필수)
 
-// DOMContentLoaded 보장
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
-} else {
-  initAppOnce();
-}
-
-})(); // ✅ IIFE 닫기 (이게 없으면 Unexpected end of input 뜸)
 
 
 
