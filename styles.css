@@ -1237,3 +1237,25 @@ tr.remark-row td:first-child{
   color: rgba(60,60,60,0.9);
   font-weight: 900;
 }
+
+
+/* =========================
+   비고(ZZZ) 행 전용 스타일
+========================= */
+.calc-remark-row input {
+  background: #f1f1f1 !important;
+  color: #8a8a8a !important;
+  border-color: #ddd !important;
+}
+
+/* placeholder도 흐리게 */
+.calc-remark-row input::placeholder {
+  color: #b0b0b0;
+}
+
+/* 체크박스/셀렉트도 통일 */
+.calc-remark-row select {
+  background: #f1f1f1 !important;
+  color: #8a8a8a !important;
+}
+
