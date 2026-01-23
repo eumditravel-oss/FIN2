@@ -3199,114 +3199,97 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
   }
 }
 
-/* =========================================================
-   ✅ 일반 클릭 시 앵커만 갱신 + (필요 시) 기존 블록 선택 해제
-   - calc-grid는 이미 위에서 "행 선택 앵커" 로직으로 처리했으니
-     여기서는 셀 블록선택(코드/var 등) 전용으로 안전 처리
-   ========================================================= */
-function __handleNormalClickCell(input) {
-  if (!(input instanceof HTMLInputElement)) return;
-
-  const k = __getCellKey(input);
-  if (!k.grid) return;
-
-  // 같은 컨텍스트에서만 앵커 갱신
-  __setAnchor(input);
-}
-
-/* =========================================================
-   ✅ Shift + Click / Click 바인딩(1회)
-   - calc는 위에서 별도 처리(행 선택)하므로 여기서는 제외
-   ========================================================= */
-if (!window.__finCellBlockBound2) {
-  window.__finCellBlockBound2 = true;
-
-  document.addEventListener("mousedown", (e) => {
-    const t = e.target;
-    const input = t?.closest?.("input.cell");
+  // =========================================================
+  // ✅ 일반 클릭 시 앵커만 갱신 + (필요 시) 기존 블록 선택 해제
+  // - calc-grid는 위에서 "행 선택" 전용 mousedown 핸들러가 처리 중이므로
+  //   여기서는 code/var 등 "셀 블록 선택" 전용으로 처리
+  // =========================================================
+  function __handleNormalClickCell(input) {
     if (!(input instanceof HTMLInputElement)) return;
 
-    const grid = input.dataset.grid || "";
-    const tabId = input.dataset.tab || "";
+    const k = __getCellKey(input);
+    if (!k.grid) return;
 
-    // ✅ calc는 기존 로직(행 선택/Shift+행범위)을 그대로 사용
-    if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
-      return;
-    }
-
-    // ✅ Shift+클릭: 셀 블록 선택
-    if (e.shiftKey) {
-      e.preventDefault();
-
-      const targetKey = __getCellKey(input);
-
-      // anchor 없거나 컨텍스트 다르면 현재를 anchor로
-      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
-        __finBlockSel.anchor = targetKey;
-        __applyCellBlockSelection(targetKey, targetKey);
-        return;
+    // ✅ calc는 행 선택 로직이 따로 있으니, 셀 블록 선택에서는 제외
+    if (k.grid === "calc") {
+      // calc에서 클릭했는데 셀 블록이 남아있으면 정리(선택 UX 안정)
+      if (document.querySelector("input.cell.block-selected")) {
+        __clearCellBlockSelection();
+        __finBlockSel.anchor = null;
       }
-
-      __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
       return;
     }
 
-    // ✅ 일반 클릭: 앵커 갱신(원하면 블록 유지, 해제는 Ctrl+Z로)
-    __handleNormalClickCell(input);
-  }, true);
-}
-
-/* =========================================================
-   ✅ Ctrl+Z : 블록 선택 / 행 선택 해제 (1회 바인딩)
-   - 선택이 있을 때만 가로채고
-   - 선택이 없으면 기본 Undo 동작 유지
-   ========================================================= */
-if (!window.__finClearSelectionHotkeyBound) {
-  window.__finClearSelectionHotkeyBound = true;
-
-  document.addEventListener("keydown", (e) => {
-    if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "z" || e.key === "Z"))) return;
-
-    const hasCellBlock = !!document.querySelector("input.cell.block-selected");
-    const hasCalcMulti = !!__calcMulti && __calcMulti.active;
-
-    // ✅ 선택이 없으면 기본 Undo 그대로
-    if (!hasCellBlock && !hasCalcMulti) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (hasCellBlock) {
+    // ✅ 같은 컨텍스트가 아니면 블록 선택 해제
+    if (__finBlockSel.anchor && !__sameContext(__finBlockSel.anchor, k)) {
       __clearCellBlockSelection();
       __finBlockSel.anchor = null;
     }
 
-    if (hasCalcMulti) {
-      __calcMultiClear();
-      const tabId = state.activeTab;
-      if (tabId === "steel" || tabId === "steel_sub" || tabId === "support") {
-        __applyCalcRowSelectionStyles(tabId);
-      }
+    // ✅ 단순 클릭은 앵커만 갱신(블록 선택은 shift+click에서)
+    __setAnchor(input);
+  }
+
+  // =========================================================
+  // ✅ Shift + Click : 셀 블록 지정 (code/var 중심)
+  // - calc는 행 블록 지정이 우선이므로 여기서는 제외
+  // =========================================================
+  function __handleShiftClickCell(input) {
+    if (!(input instanceof HTMLInputElement)) return;
+
+    const k = __getCellKey(input);
+    if (!k.grid) return;
+
+    // ✅ calc는 행 선택이 우선
+    if (k.grid === "calc") return;
+
+    // ✅ anchor 없으면 현재를 anchor로
+    if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, k)) {
+      __clearCellBlockSelection();
+      __finBlockSel.anchor = k;
+      input.classList.add("block-selected");
+      return;
     }
-  }, true);
-}
 
+    // ✅ anchor~target 사각형 블록 지정
+    __applyCellBlockSelection(__finBlockSel.anchor, k);
+  }
 
-/* =========================================================
-   ✅ initAppOnce 실제 호출(HTML에서 defer 로딩이면 안전)
-   - 이미 호출하고 있다면(HTML inline) 중복 호출 방지
-   ========================================================= */
-if (!window.__finAppBooted) {
-  window.__finAppBooted = true;
+  // =========================================================
+  // ✅ 블록 선택용 mousedown 바인딩(1회)
+  // - calc는 위쪽 행 선택 핸들러가 이미 return 처리하므로 충돌 없음
+  // =========================================================
+  if (!window.__finCellBlockBound2) {
+    window.__finCellBlockBound2 = true;
 
+    document.addEventListener("mousedown", (e) => {
+      const input = e.target?.closest?.("input.cell");
+      if (!(input instanceof HTMLInputElement)) return;
+
+      // 입력 편집중이면(드래그/선택 등) 과한 개입 방지
+      // (단, Shift+click 블록 선택은 허용)
+      if (!e.shiftKey) {
+        __handleNormalClickCell(input);
+        return;
+      }
+
+      // Shift + click
+      e.preventDefault(); // 텍스트 드래그 방지(블록 선택 UX)
+      __handleShiftClickCell(input);
+    }, true);
+  }
+
+  // =========================================================
+  // ✅ Init trigger (DOM ready)
+  // =========================================================
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => initAppOnce(), { once: true });
+    document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
   } else {
     initAppOnce();
   }
-}
 
-})(); // ✅ IIFE 닫기 (필수)
+})(); // ✅ IIFE 닫기
+
 
 
 
