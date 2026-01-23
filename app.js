@@ -2815,23 +2815,39 @@ function initAppOnce() {
   if (e.shiftKey) {
     e.preventDefault(); // 텍스트 드래그 방지
 
-    // 🔴 1) 산출표(calc)는 "행 단위 선택"
-    if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
-      // 기존 다중선택 컨텍스트 아니면 시작
-      if (!__calcMultiIsSameContext(tabId)) {
-        __calcMultiBegin(tabId, row);
-      } else {
-        __calcMultiSetRange(tabId, __calcMulti.anchorRow ?? row, row);
-      }
+    // 🔴 1) 산출표(calc)는 "행 단위 선택" (Shift+클릭 anchor = 기존 포커스 행)
+if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
+  e.preventDefault(); // 텍스트 드래그 방지
 
-      __applyCalcRowSelectionStyles(tabId);
-      return;
-    }
-
-    // 🔵 2) code / var 등은 기존 셀 블록 선택 유지
-    __handleShiftClickCell(input);
-    return;
+  // ✅ mousedown 시점: 아직 포커스가 클릭한 셀로 이동하기 전
+  // -> 기존 선택(포커스) 셀의 row를 anchor로 사용
+  let anchor = row;
+  const ae = document.activeElement;
+  if (
+    ae instanceof HTMLInputElement &&
+    ae.dataset.grid === "calc" &&
+    ae.dataset.tab === tabId
+  ) {
+    anchor = Number(ae.dataset.row || row);
+  } else if (__calcMulti.anchorRow != null) {
+    // 혹시 포커스가 다른데 anchorRow가 남아있으면 그걸 사용
+    anchor = Number(__calcMulti.anchorRow);
   }
+
+  // ✅ 다중선택 컨텍스트가 아니면 anchor 기준으로 시작
+  if (!__calcMultiIsSameContext(tabId)) {
+    __calcMultiBegin(tabId, anchor);
+  } else {
+    // 컨텍스트가 같은데 anchor가 바뀌어야 한다면 갱신
+    __calcMulti.anchorRow = anchor;
+  }
+
+  // ✅ anchor ~ 클릭 row 범위 선택
+  __calcMultiSetRange(tabId, anchor, row);
+  __applyCalcRowSelectionStyles(tabId);
+  return;
+}
+
 
 
        
