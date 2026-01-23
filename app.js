@@ -3352,17 +3352,16 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
       }, true);
     }
 
-  } // ✅ initAppOnce() 블록 끝
+   } // ✅ initAppOnce() 끝
 
-  // ===== 블록 복사 단축키 핸들러 끝(여기까지 위 코드가 정상적으로 닫혀 있어야 함) =====
-
-// ✅ DOMContentLoaded 시 init
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
-} else {
-  initAppOnce();
-}
+  // ✅ DOMContentLoaded 시 init (반드시 IIFE 내부, 함수 밖)
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
+  } else {
+    initAppOnce();
+  }
 })(); // ✅ IIFE 끝
+
 
 
 
