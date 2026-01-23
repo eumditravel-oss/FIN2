@@ -1892,7 +1892,6 @@ function attachGridNav(container) {
   }
 }
 
-    }
   }, true);
 }
 
