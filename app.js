@@ -2900,9 +2900,9 @@ document.addEventListener("keydown", (e) => {
     // 1) 현재 포커스가 산출표 셀인지 확인
     const ae = document.activeElement;
     if (!(ae instanceof HTMLInputElement)) {
-      alert("산출표에서 셀을 클릭한 상태에서 Ctrl+F10을 눌러주세요.");
-      return;
-    }
+  return; // 조용히 종료
+}
+
 
     // 너 프로젝트에서 dataset으로 row/col/tab을 심어뒀다면 보통 이런 형태
     const row = Number(ae.dataset.row);
