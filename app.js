@@ -2882,53 +2882,59 @@ function bindGlobalHotkeysOnce() {
     }
 
     // -------------------------
-    // Ctrl + F10 : (산출탭) "비고행" 아래에 1행 추가
-    // ✅ 개선: 포커스가 어디에 있든 현재 구분의 비고행을 찾아 그 아래에 삽입
-    //   - 현재 포커스 행이 비고행이면 그 비고행 아래
-    //   - 아니면 구분 내 첫 번째 비고행 아래
-    //   - 비고행이 없으면 알림 후 종료
-    // -------------------------
-    if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "F10")) {
-      e.preventDefault();
-      e.stopPropagation();
+// Ctrl + F10 : (산출탭) 현재 포커스(선택) 행 아래에 "비고" 1행 자동 삽입
+//  - picker에서 비고 선택 -> Ctrl+Enter로 삽입하는 것과 동일한 삽입 로직 사용
+// -------------------------
+if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "F10") {
+  e.preventDefault();
+  e.stopPropagation();
 
-      const tabId = state.activeTab;
-      const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
-      if (!isCalc) return;
+  const tabId = state.activeTab;
+  const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+  if (!isCalc) return;
 
-      const bucket = state[tabId];
-      const sec = bucket.sections[bucket.activeSection];
-      if (!sec || !Array.isArray(sec.rows)) return;
+  // ✅ 포커스 행 찾기 (현재 셀 기준)
+  const ae = document.activeElement;
+  if (!(ae instanceof HTMLInputElement) || ae.dataset.grid !== "calc" || ae.dataset.tab !== tabId) {
+    alert("산출표에서 셀을 하나 클릭한 상태에서 Ctrl+F10을 눌러주세요.");
+    return;
+  }
 
-      // 1) 현재 포커스가 calc input이면 그 row를 우선 후보로
-      let focusRow = null;
-      if (ae instanceof HTMLInputElement && ae.dataset.grid === "calc" && ae.dataset.tab === tabId) {
-        focusRow = clamp(Number(ae.dataset.row || 0), 0, Math.max(0, sec.rows.length - 1));
-      }
+  const focusRow = Number(ae.dataset.row || 0);
 
-      // 2) 삽입 기준 비고행 index 결정
-      let remarkIdx = -1;
+  // ✅ codeMaster에서 '비고' 아이템 가져오기
+  const remarkItem = getRemarkItemFromCodeMaster();
+  if (!remarkItem || !remarkItem.code) {
+    alert("코드 목록(codeMaster)에서 '비고(ZZZ...)' 항목을 찾을 수 없습니다.\n코드탭/가져오기 Excel에 비고 코드가 포함되어 있는지 확인해 주세요.");
+    return;
+  }
 
-      // (a) 포커스 행이 비고행이면 그 아래
-      if (focusRow != null) {
-        const rr = sec.rows[focusRow];
-        if (isRemarkRowObj(rr)) remarkIdx = focusRow;
-      }
+  // ✅ 여기서 핵심:
+  // picker에서 Ctrl+Enter 했을 때 쓰는 '그 삽입 함수'를 그대로 호출해야 완전히 동일한 동작이 됨.
+  // 프로젝트마다 함수명이 다를 수 있어서 아래 2개 중 너 프로젝트에 있는 걸로 연결하면 됨.
 
-      // (b) 아니면 구분 내 첫 번째 비고행 아래
-      if (remarkIdx < 0) {
-        remarkIdx = sec.rows.findIndex((r) => isRemarkRowObj(r));
-      }
+  // [A] 너 프로젝트에 이미 있는 "picker 삽입" 함수가 예를 들어 insertPickedCodesToCalc(...) 라면:
+  // insertPickedCodesToCalc(tabId, [remarkItem], { insertAfterRow: focusRow });
 
-      if (remarkIdx < 0) {
-        alert("현재 구분에 [비고] 행이 없습니다.\n비고행(코드: ZZZZZZZZZZZZZZZZZ)을 먼저 추가하거나, 비고행을 포함해 주세요.");
-        return;
-      }
+  // [B] 너가 이미 쓰는 addRows(...) 기반이라면(이건 picker와 동일하진 않을 수 있음):
+  // addRows(tabId, 1, focusRow);
 
-      // 3) 비고행 아래에 1행 추가
-      addRows(tabId, 1, remarkIdx);
-      return;
-    }
+  // ✅ 가장 추천: "picker Ctrl+Enter"에서 실제 호출되는 함수/로직을 그대로 재사용.
+  // 아래는 예시로 "applyPickedCodesToCalc" 라는 함수가 있다고 가정한 형태야.
+  if (typeof applyPickedCodesToCalc === "function") {
+    applyPickedCodesToCalc(tabId, [remarkItem], focusRow); // focusRow 아래 삽입
+  } else if (typeof insertCodesIntoCalc === "function") {
+    insertCodesIntoCalc(tabId, [remarkItem], focusRow); // 너 프로젝트에 이런 이름이면 이걸로
+  } else {
+    // 마지막 fallback (완전 동일 동작 보장은 어려움)
+    addRows(tabId, 1, focusRow);
+    // 그리고 새로 추가된 행에 remarkItem.code를 채우는 로직이 별도로 필요함
+    // (그래서 가능하면 위 applyPickedCodesToCalc / insertCodesIntoCalc로 연결해야 함)
+  }
+
+  return;
+}
+
 
   }, true); // ✅ keydown 리스너 닫기
 } // ✅ bindGlobalHotkeysOnce 닫기
@@ -2974,6 +2980,41 @@ function bindGlobalHotkeysOnce() {
     updateViewFillHeight();
     updateScrollHeights();
   });
+}
+
+
+   function getRemarkItemFromCodeMaster() {
+  // ✅ 너가 쓰는 실제 비고 코드로 정확히 맞춰줘
+  const REMARK_CODE = "ZZZZZZZZZZZZZZZZZ";
+
+  if (Array.isArray(codeMaster)) {
+    // 1) 코드로 먼저 찾기
+    let it = codeMaster.find(x => (x?.code || x?.Code) === REMARK_CODE);
+    if (it) return normalizeCodeItem(it);
+
+    // 2) 품명/상품명으로 찾기 ("비고")
+    it = codeMaster.find(x => {
+      const pn = (x?.productName || x?.["품명"] || x?.Product || "").toString().trim();
+      return pn === "비고";
+    });
+    if (it) return normalizeCodeItem(it);
+  }
+
+  return null;
+}
+
+// codeMaster 항목 구조가 섞여 있어도 picker 삽입 함수가 먹는 형태로 정규화
+function normalizeCodeItem(it) {
+  return {
+    code: it.code ?? it.Code ?? "",
+    productName: it.productName ?? it["품명"] ?? it.Product ?? "",
+    specs: it.specs ?? it["규격"] ?? it.Specifications ?? "",
+    unit: it.unit ?? it["단위"] ?? it.Unit ?? "",
+    surcharge: it.surcharge ?? it["할증"] ?? "",
+    convUnit: it.convUnit ?? it["환산단위"] ?? "",
+    convFactor: it.convFactor ?? it["환산계수"] ?? "",
+    note: it.note ?? it["비고"] ?? ""
+  };
 }
 
 
