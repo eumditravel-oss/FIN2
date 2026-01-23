@@ -1215,3 +1215,25 @@ input.cell.block-selected{
   outline: 2px solid rgba(30,90,200,.65);
   background: rgba(30,90,200,.10);
 }
+
+
+/* =========================
+   ✅ 비고(remark) 행 강조 스타일
+========================= */
+tr.remark-row td,
+tr.remark-row input.cell{
+  background: rgba(120,120,120,0.12) !important;
+}
+
+tr.remark-row input.cell{
+  font-weight: 800;
+}
+
+tr.remark-row input.cell.readonly{
+  opacity: 1; /* readonly라도 더 또렷하게 */
+}
+
+tr.remark-row td:first-child{
+  color: rgba(60,60,60,0.9);
+  font-weight: 900;
+}
