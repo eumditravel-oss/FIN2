@@ -150,12 +150,7 @@
     return String(code || "").trim().toUpperCase() === REMARK_CODE.toUpperCase();
   }
 
-  function isRemarkRowObj(r) {
-    if (!r) return false;
-    if (isRemarkCode(r.code)) return true;
-    // name은 자동세팅 되지만 혹시 수동/레거시 데이터 대비
-    return normalizeRemarkName(r.name) === normalizeRemarkName(REMARK_NAME);
-  }
+   function isRemarkRowObj(r) {
 
   function getRemarkCodeMasterRow() {
     return {
@@ -1306,9 +1301,9 @@ const CODE_COL_INDEX = {
       ])
     ]);
 
-    const tbody = el("tbody", {}, []);
+    c    const tbody = el("tbody", {}, []);
     sec.rows.forEach((r, i) => {
-      const tr = el("tr", {}, [
+      const tr = el("tr", { class: hasAtLeastFiveZ(r.code) ? "z5-row" : "" }, [
         el("td", {}, [String(i + 1)]),
         tdNavInputCalc(tabId, i, 0, "code", r.code, { placeholder: "코드 입력" }),
         tdNavInputCalc(tabId, i, 1, "name", r.name, { readonly: true }),
@@ -1323,6 +1318,7 @@ const CODE_COL_INDEX = {
       ]);
       tbody.appendChild(tr);
     });
+
 
     table.appendChild(thead);
     table.appendChild(tbody);
@@ -1447,10 +1443,12 @@ if (e.key === "Escape") {
         rr[field] = t.value;
       }
 
-      recomputeSection(tabId);
+            recomputeSection(tabId);
       saveState();
       refreshCalcComputed(tabId); // 값/환산/자동필드 갱신
+      __applyZ5RowStyles(tabId);  // ✅ Z 5개 이상 행 회색 즉시 반영
     });
+
 
     return table;
   }
@@ -1536,9 +1534,13 @@ if (e.key === "Escape") {
       setVal("converted", String(r.converted ?? 0));
     });
 
-    // 다중선택 표시 갱신
+        // 다중선택 표시 갱신
     raf2(() => __applyCalcRowSelectionStyles(tabId));
+
+    // ✅ Z 5개 이상 행 회색 표시 갱신
+    raf2(() => __applyZ5RowStyles(tabId));
   }
+
 
   function addRows(tabId, n, insertAfterRow = null) {
     const bucket = state[tabId];
