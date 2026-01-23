@@ -2881,59 +2881,100 @@ function bindGlobalHotkeysOnce() {
       return;
     }
 
-    // -------------------------
-// Ctrl + F10 : (산출탭) 현재 포커스(선택) 행 아래에 "비고" 1행 자동 삽입
-//  - picker에서 비고 선택 -> Ctrl+Enter로 삽입하는 것과 동일한 삽입 로직 사용
-// -------------------------
-if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "F10") {
-  e.preventDefault();
-  e.stopPropagation();
+    // =========================
+// Ctrl + F10 : 아래로 1행 추가 + 코드 자동입력(ZZZ...)
+// =========================
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "F10") {
+    e.preventDefault();
+    e.stopPropagation();
 
-  const tabId = state.activeTab;
-  const isCalc = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
-  if (!isCalc) return;
+    const REMARK_CODE = "ZZZZZZZZZZZZZZZZZ";
 
-  // ✅ 포커스 행 찾기 (현재 셀 기준)
-  const ae = document.activeElement;
-  if (!(ae instanceof HTMLInputElement) || ae.dataset.grid !== "calc" || ae.dataset.tab !== tabId) {
-    alert("산출표에서 셀을 하나 클릭한 상태에서 Ctrl+F10을 눌러주세요.");
-    return;
+    const tabId = state?.activeTab;
+    const isCalcTab = (tabId === "steel" || tabId === "steel_sub" || tabId === "support"); 
+    // ⬆️ 너 프로젝트의 산출탭 id에 맞게 유지/추가해줘
+
+    if (!isCalcTab) return;
+
+    // 1) 현재 포커스가 산출표 셀인지 확인
+    const ae = document.activeElement;
+    if (!(ae instanceof HTMLInputElement)) {
+      alert("산출표에서 셀을 클릭한 상태에서 Ctrl+F10을 눌러주세요.");
+      return;
+    }
+
+    // 너 프로젝트에서 dataset으로 row/col/tab을 심어뒀다면 보통 이런 형태
+    const row = Number(ae.dataset.row);
+    const col = ae.dataset.col; // (있으면)
+    const grid = ae.dataset.grid; // (있으면)
+    const tab = ae.dataset.tab; // (있으면)
+
+    // 산출표 input이 맞는지 최소 검증 (프로젝트에 맞게 조건 조절 가능)
+    if (!Number.isFinite(row) || (tab && tab !== tabId)) {
+      alert("산출표 셀을 선택한 상태에서 Ctrl+F10을 눌러주세요.");
+      return;
+    }
+
+    // 2) 현재 행 아래에 1행 추가
+    //    (너 프로젝트 addRows가 "insertAfterRow" 인자를 받는다고 가정)
+    if (typeof addRows !== "function") {
+      alert("addRows 함수가 없어 Ctrl+F10 행추가를 실행할 수 없습니다.");
+      return;
+    }
+
+    addRows(tabId, 1, row);       // ✅ row 아래에 1행 추가
+    const newRow = row + 1;        // ✅ 방금 추가된 행 index는 보통 row+1
+
+    // 3) 방금 추가된 행의 "코드" 셀을 찾아 값 입력 + input 이벤트 발생
+    //    (이벤트까지 발생시켜야 기존의 '코드 입력시 자동 채움 로직'이 같이 돈다)
+    requestAnimationFrame(() => {
+      const codeInput = findCalcInput(tabId, newRow, "code"); // col 키가 "code"인 경우
+      if (!codeInput) {
+        // 프로젝트에서 코드 컬럼 키가 "code"가 아닐 수도 있어서 fallback 한 번 더
+        const fallback = findAnyCodeCell(tabId, newRow);
+        if (!fallback) {
+          alert("새로 추가된 행의 코드 입력칸을 찾지 못했습니다. (dataset.col 키 확인 필요)");
+          return;
+        }
+        setInputValueAndFire(fallback, REMARK_CODE);
+        fallback.focus();
+        return;
+      }
+
+      setInputValueAndFire(codeInput, REMARK_CODE);
+      codeInput.focus();
+    });
   }
+});
 
-  const focusRow = Number(ae.dataset.row || 0);
-
-  // ✅ codeMaster에서 '비고' 아이템 가져오기
-  const remarkItem = getRemarkItemFromCodeMaster();
-  if (!remarkItem || !remarkItem.code) {
-    alert("코드 목록(codeMaster)에서 '비고(ZZZ...)' 항목을 찾을 수 없습니다.\n코드탭/가져오기 Excel에 비고 코드가 포함되어 있는지 확인해 주세요.");
-    return;
-  }
-
-  // ✅ 여기서 핵심:
-  // picker에서 Ctrl+Enter 했을 때 쓰는 '그 삽입 함수'를 그대로 호출해야 완전히 동일한 동작이 됨.
-  // 프로젝트마다 함수명이 다를 수 있어서 아래 2개 중 너 프로젝트에 있는 걸로 연결하면 됨.
-
-  // [A] 너 프로젝트에 이미 있는 "picker 삽입" 함수가 예를 들어 insertPickedCodesToCalc(...) 라면:
-  // insertPickedCodesToCalc(tabId, [remarkItem], { insertAfterRow: focusRow });
-
-  // [B] 너가 이미 쓰는 addRows(...) 기반이라면(이건 picker와 동일하진 않을 수 있음):
-  // addRows(tabId, 1, focusRow);
-
-  // ✅ 가장 추천: "picker Ctrl+Enter"에서 실제 호출되는 함수/로직을 그대로 재사용.
-  // 아래는 예시로 "applyPickedCodesToCalc" 라는 함수가 있다고 가정한 형태야.
-  if (typeof applyPickedCodesToCalc === "function") {
-    applyPickedCodesToCalc(tabId, [remarkItem], focusRow); // focusRow 아래 삽입
-  } else if (typeof insertCodesIntoCalc === "function") {
-    insertCodesIntoCalc(tabId, [remarkItem], focusRow); // 너 프로젝트에 이런 이름이면 이걸로
-  } else {
-    // 마지막 fallback (완전 동일 동작 보장은 어려움)
-    addRows(tabId, 1, focusRow);
-    // 그리고 새로 추가된 행에 remarkItem.code를 채우는 로직이 별도로 필요함
-    // (그래서 가능하면 위 applyPickedCodesToCalc / insertCodesIntoCalc로 연결해야 함)
-  }
-
-  return;
+// ✅ 산출표 특정 셀(input) 찾기: tabId + row + colKey
+function findCalcInput(tabId, rowIdx, colKey){
+  return document.querySelector(
+    `input[data-tab="${tabId}"][data-row="${rowIdx}"][data-col="${colKey}"]`
+  );
 }
+
+// ✅ 프로젝트마다 colKey가 다를 수 있으니 '코드열'로 추정되는 input을 한번 더 찾아주는 fallback
+function findAnyCodeCell(tabId, rowIdx){
+  // 1) data-col에 code가 포함된 경우
+  let el = document.querySelector(`input[data-tab="${tabId}"][data-row="${rowIdx}"][data-col*="code" i]`);
+  if (el) return el;
+
+  // 2) placeholder/aria-label 등에 "코드"가 있는 경우(있다면)
+  el = document.querySelector(`input[data-tab="${tabId}"][data-row="${rowIdx}"][placeholder*="코드"], input[data-tab="${tabId}"][data-row="${rowIdx}"][aria-label*="코드"]`);
+  if (el) return el;
+
+  return null;
+}
+
+// ✅ 값 넣고 input/change 이벤트까지 강제 발생 (자동 채움/검증 로직 실행되게)
+function setInputValueAndFire(inputEl, value){
+  inputEl.value = value;
+  inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+  inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 
 
   }, true); // ✅ keydown 리스너 닫기
