@@ -2797,84 +2797,67 @@ function initAppOnce() {
      - input.cell만 대상
      - ShiftKey면 anchor~target 사각형 블록 지정
      ============================ */
-  if (!window.__finCellBlockBound) {
+    if (!window.__finCellBlockBound) {
     window.__finCellBlockBound = true;
 
+    // ✅ 산출표(calc)에서만 Shift+클릭/일반클릭을 "행 선택" 용도로 처리
+    // (코드/변수표 등 셀 블록 선택은 아래쪽 __finCellBlockBound2 로직이 담당)
     document.addEventListener("mousedown", (e) => {
-  const t = e.target;
-  const input = t?.closest?.("input.cell");
-  if (!(input instanceof HTMLInputElement)) return;
+      const input = e.target?.closest?.("input.cell");
+      if (!(input instanceof HTMLInputElement)) return;
 
-  const grid = input.dataset.grid || "";
-  const tabId = input.dataset.tab || "";
-  const row = Number(input.dataset.row || 0);
+      const grid = input.dataset.grid || "";
+      const tabId = input.dataset.tab || "";
+      const row = Number(input.dataset.row || 0);
 
-  // ================================
-  // ✅ Shift + 좌클릭
-  // ================================
-  if (e.shiftKey) {
-    e.preventDefault(); // 텍스트 드래그 방지
+      const isCalcTab =
+        grid === "calc" &&
+        (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
 
-    // 🔴 1) 산출표(calc)는 "행 단위 선택" (Shift+클릭 anchor = 기존 포커스 행)
-if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
-  e.preventDefault(); // 텍스트 드래그 방지
+      // calc 탭이 아니면 여기서는 아무것도 하지 않음(다른 핸들러가 처리)
+      if (!isCalcTab) return;
 
-  // ✅ mousedown 시점: 아직 포커스가 클릭한 셀로 이동하기 전
-  // -> 기존 선택(포커스) 셀의 row를 anchor로 사용
-  let anchor = row;
-  const ae = document.activeElement;
-  if (
-    ae instanceof HTMLInputElement &&
-    ae.dataset.grid === "calc" &&
-    ae.dataset.tab === tabId
-  ) {
-    anchor = Number(ae.dataset.row || row);
-  } else if (__calcMulti.anchorRow != null) {
-    // 혹시 포커스가 다른데 anchorRow가 남아있으면 그걸 사용
-    anchor = Number(__calcMulti.anchorRow);
+      // ================================
+      // ✅ Shift + 좌클릭 : 행 범위 선택
+      // ================================
+      if (e.shiftKey) {
+        e.preventDefault(); // 텍스트 드래그 방지
+
+        // mousedown 시점에는 포커스가 아직 이동 전 → 기존 포커스 행을 anchor로 사용
+        let anchor = row;
+        const ae = document.activeElement;
+        if (
+          ae instanceof HTMLInputElement &&
+          ae.dataset.grid === "calc" &&
+          ae.dataset.tab === tabId
+        ) {
+          anchor = Number(ae.dataset.row || row);
+        } else if (__calcMulti.anchorRow != null) {
+          anchor = Number(__calcMulti.anchorRow);
+        }
+
+        // 컨텍스트가 다르면 anchor 기준으로 시작
+        if (!__calcMultiIsSameContext(tabId)) {
+          __calcMultiBegin(tabId, anchor);
+        } else {
+          __calcMulti.anchorRow = anchor;
+        }
+
+        __calcMultiSetRange(tabId, anchor, row);
+        __applyCalcRowSelectionStyles(tabId);
+        return;
+      }
+
+      // ================================
+      // ✅ 일반 클릭 : 기존 선택은 유지, anchor만 갱신
+      // ================================
+      __calcMulti.anchorRow = row;
+      // (의도적으로 return;  다른 셀 블록 선택 로직과 충돌 방지)
+      return;
+
+    }, true);
   }
 
-  // ✅ 다중선택 컨텍스트가 아니면 anchor 기준으로 시작
-  if (!__calcMultiIsSameContext(tabId)) {
-    __calcMultiBegin(tabId, anchor);
-  } else {
-    // 컨텍스트가 같은데 anchor가 바뀌어야 한다면 갱신
-    __calcMulti.anchorRow = anchor;
-  }
-
-  // ✅ anchor ~ 클릭 row 범위 선택
-  __calcMultiSetRange(tabId, anchor, row);
-  __applyCalcRowSelectionStyles(tabId);
-  return;
-}
-
-
-
-       
-
-  // ================================
-// ✅ 일반 클릭
-// ================================
-
-// calc-table 클릭 시
-// - ❌ 기존 블록 해제 금지
-// - ✅ 앵커(row)만 이동
-if (grid === "calc" && (tabId === "steel" || tabId === "steel_sub" || tabId === "support")) {
-  // ✅ 블록 시작 금지
-  // 👉 anchor만 갱신 (Shift 클릭 기준점)
-  __calcMulti.anchorRow = row;
-  return;
-}
-
-
-
-  // 그 외는 기존 셀 블록 로직
-  __handleNormalClickCell(input);
-}, true);
-
-
-    
-  }
 
       /* ============================
    ✅ Global Hotkeys (Ctrl+., Ctrl+B, Ctrl+F3, Ctrl+F10)
