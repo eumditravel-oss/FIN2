@@ -179,6 +179,16 @@ function ensureRemarkCodeMasterTop() {
 }
 
 
+   /***************
+ * ✅ Z 5개 이상 코드 판단 (행 회색 처리용)
+ ***************/
+function hasAtLeastFiveZ(code) {
+  // "Z"가 연속 5개 이상 포함되면 true (대/소문자 무시)
+  return /Z{5,}/i.test(String(code || "").trim());
+}
+
+
+
 
 
   /***************
@@ -423,6 +433,34 @@ function ensureRemarkCodeMasterTop() {
 ensureRemarkCodeMasterTop();
 saveState();
 
+   /***************
+ * ✅ 비고행(ZZZZ...) 스타일 동기화
+ * - Ctrl+F10으로 비고코드 넣은 직후 행 클래스 반영
+ ***************/
+function syncRemarkRowFromCodeInput(codeInput) {
+  if (!(codeInput instanceof HTMLInputElement)) return;
+
+  const tabId = codeInput.dataset.tab;
+  const row = Number(codeInput.dataset.row || 0);
+  if (!tabId) return;
+
+  const table = codeInput.closest("table.calc-table");
+  if (!table) return;
+
+  const tr = table.querySelectorAll("tbody tr")[row];
+  if (!tr) return;
+
+  const code = String(codeInput.value || "").trim();
+  const isRemark = isRemarkCode(code);
+
+  // 비고행이면 z5-row도 같이 켜고(회색 스타일 재사용)
+  tr.classList.toggle("z5-row", isRemark || hasAtLeastFiveZ(code));
+
+  // 원하면 전용 클래스도 추가로 사용 가능
+  tr.classList.toggle("remark-calc-row", isRemark);
+}
+
+
 
 
   // ✅ (v13.2) 구분명 리스트 클릭/↑↓ 후 렌더링되면 포커스 복원
@@ -500,6 +538,26 @@ saveState();
     if (!__calcMultiIsSameContext(tabId)) return [];
     return [...__calcMulti.rows].sort((a, b) => a - b);
   }
+
+
+   /***************
+ * ✅ Z 5개 이상 행 스타일 적용
+ ***************/
+function __applyZ5RowStyles(tabId) {
+  // 해당 탭의 calc-table 찾기
+  const table = document
+    .querySelector(`table.calc-table input[data-grid="calc"][data-tab="${tabId}"]`)
+    ?.closest("table.calc-table");
+  if (!table) return;
+
+  const trs = table.querySelectorAll("tbody tr");
+  trs.forEach((tr, i) => {
+    const codeInput = tr.querySelector(`input[data-grid="calc"][data-tab="${tabId}"][data-row="${i}"][data-field="code"]`);
+    const code = codeInput ? codeInput.value : "";
+    tr.classList.toggle("z5-row", hasAtLeastFiveZ(code));
+  });
+}
+
 
 
    // ✅ [추가] Ctrl+B에서 "현재 행 선택 토글"을 만들기 위한 함수
@@ -2936,6 +2994,8 @@ codeInput.dispatchEvent(new Event("input", { bubbles: true }));
 codeInput.dispatchEvent(new Event("change", { bubbles: true }));
 
 syncRemarkRowFromCodeInput(codeInput);   // ✅ 추가: 비고행 회색 처리 클래스 부여
+
+         
 
 safeFocus(codeInput);
 ensureScrollIntoView(codeInput);
