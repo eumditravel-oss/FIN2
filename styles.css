@@ -1270,3 +1270,9 @@ tr.remark-row select{
   color: #8a8a8a !important;
 }
 
+
+/* ✅ 코드에 Z가 5개 이상인 행 회색 표시 */
+.calc-table tbody tr.z5-row > td{
+  background: rgba(0,0,0,.06);
+}
+
