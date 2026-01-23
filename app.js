@@ -1872,14 +1872,26 @@ function attachGridNav(container) {
     else if (key === "Home" && e.ctrlKey) { e.preventDefault(); moveCell(t, -99999, 0); }
     else if (key === "End" && e.ctrlKey) { e.preventDefault(); moveCell(t, 99999, 0); }
     else if ((key === "Delete" || key === "Del") && e.ctrlKey) {
-      // Ctrl+Del: 변수표는 현재 셀 비움 / 코드표/산출표는 “현재 행 삭제”를 상단 핸들러에서 처리
-      const grid = t.dataset.grid;
-      if (grid === "var") {
-        if (t.readOnly) return;
-        e.preventDefault();
-        t.value = "";
-        t.dispatchEvent(new Event("input", { bubbles: true }));
-      }
+  const grid = t.dataset.grid;
+  if (grid === "var") {
+    if (t.readOnly) return;
+    e.preventDefault();
+    t.value = "";
+    t.dispatchEvent(new Event("input", { bubbles: true }));
+  } else if (grid === "code") {
+    e.preventDefault();
+    const row = Number(t.dataset.row || 0);
+    if (confirm("현재 행을 삭제할까요?")) {
+      // codeMaster 0행(비고 고정) 보호까지 고려
+      if (row === 0) return;
+      state.codeMaster.splice(row, 1);
+      ensureRemarkCodeMasterTop();
+      saveState();
+      render();
+    }
+  }
+}
+
     }
   }, true);
 }
@@ -3216,22 +3228,7 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
       __setAnchor(input);
     }
 
-    function __handleShiftClickCell(input) {
-      if (!(input instanceof HTMLInputElement)) return;
-
-            // ✅ calc는 행선택 로직이 전담하므로 여기서는 제외
-      const grid = input.dataset.grid || "";
-      if (grid === "calc") return;
-
-      // 컨텍스트가 바뀌면 기존 선택 해제
-      const k = __getCellKey(input);
-      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, k)) {
-        __clearCellBlockSelection();
-      }
-
-      // 앵커만 갱신
-      __setAnchor(input);
-    }
+    
 
     function __handleShiftClickCell(input) {
       if (!(input instanceof HTMLInputElement)) return;
