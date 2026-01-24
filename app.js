@@ -3082,9 +3082,9 @@ function __queryAllCellsInContext(key) {
   if (key.grid === "code") {
     return Array.from(document.querySelectorAll(`input.cell[data-grid="code"]`));
   }
-  return Array.from(document.querySelectorAll(
-    `input.cell[data-grid="${key.grid}"][data-tab="${key.tab}"]`
-  ));
+  return Array.from(
+    document.querySelectorAll(`input.cell[data-grid="${key.grid}"][data-tab="${key.tab}"]`)
+  );
 }
 
 function __clearCellBlockSelection() {
@@ -3111,180 +3111,52 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
   const c1 = Math.min(anchorKey.col, targetKey.col);
   const c2 = Math.max(anchorKey.col, targetKey.col);
 
-  for (const inp of cells) {
+  __clearCellBlockSelection();
+
+  cells.forEach((inp) => {
     const k = __getCellKey(inp);
+    if (!__sameContext(anchorKey, k)) return;
+
     if (k.row >= r1 && k.row <= r2 && k.col >= c1 && k.col <= c2) {
       inp.classList.add("block-selected");
-    } else {
-      inp.classList.remove("block-selected");
     }
-  }
-}
-
-// ✅ 일반 클릭(앵커만 갱신 + 기존 블록 해제)
-function __handleNormalClickCell(input) {
-  if (!(input instanceof HTMLInputElement)) return;
-
-  // ✅ calc는 행선택 로직이 전담하므로 여기서 제외
-  const grid = input.dataset.grid || "";
-  if (grid === "calc") return;
-
-  __clearCellBlockSelection();
-  __setAnchor(input);
-}
-
-function __handleShiftClickCell(input) {
-  if (!(input instanceof HTMLInputElement)) return;
-
-  const grid = input.dataset.grid || "";
-  // ✅ calc는 위에서 행선택 전용으로 처리하므로 셀블록은 제외
-  if (grid === "calc") return;
-
-  const targetKey = __getCellKey(input);
-  if (!targetKey.grid) return;
-
-  // anchor가 없거나 컨텍스트 다르면 anchor를 현재로 잡고 1셀만 선택
-  if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
-    __clearCellBlockSelection();
-    __setAnchor(input);
-    input.classList.add("block-selected");
-    return;
-  }
-
-  // 기존 선택 해제 후, 사각형 블록 선택 적용
-  __clearCellBlockSelection();
-  __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
-}
-
-// ✅ 선택 셀들을 TSV로 복사 (Ctrl+C)
-function __copySelectedBlockToClipboard() {
-  const selected = Array.from(document.querySelectorAll("input.cell.block-selected"));
-  if (!selected.length) return false;
-
-  // 컨텍스트 기준(같은 grid/tab만)
-  const firstKey = __getCellKey(selected[0]);
-  const ctxCells = selected
-    .map(inp => ({ inp, k: __getCellKey(inp) }))
-    .filter(x => __sameContext(firstKey, x.k));
-
-  if (!ctxCells.length) return false;
-
-  // 범위 계산
-  const rows = ctxCells.map(x => x.k.row);
-  const cols = ctxCells.map(x => x.k.col);
-  const r1 = Math.min(...rows), r2 = Math.max(...rows);
-  const c1 = Math.min(...cols), c2 = Math.max(...cols);
-
-  // (row,col)->value 맵
-  const map = new Map();
-  ctxCells.forEach(({ inp, k }) => {
-    map.set(`${k.row},${k.col}`, inp.value ?? "");
   });
-
-  // TSV 만들기
-  const lines = [];
-  for (let r = r1; r <= r2; r++) {
-    const line = [];
-    for (let c = c1; c <= c2; c++) {
-      line.push(String(map.get(`${r},${c}`) ?? ""));
-    }
-    lines.push(line.join("\t"));
-  }
-  const tsv = lines.join("\n");
-
-  try {
-    navigator.clipboard?.writeText(tsv);
-  } catch {
-    // fallback
-    const ta = document.createElement("textarea");
-    ta.value = tsv;
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    ta.style.top = "0";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    try { document.execCommand("copy"); } catch {}
-    document.body.removeChild(ta);
-  }
-  return true;
 }
 
-// ✅ 블록선택/앵커 관련 전역 이벤트 바인딩(1회)
-if (!window.__finCellBlockBound2) {
-  window.__finCellBlockBound2 = true;
+/* ✅ 이벤트 바인딩: 1회만 */
+if (!window.__finBlockSelBound) {
+  window.__finBlockSelBound = true;
 
-  // (1) 클릭 처리: Shift면 블록선택 / 아니면 앵커 갱신 + 기존 해제
-  document.addEventListener("mousedown", (e) => {
-  const input = e.target?.closest?.("input.cell");
-  if (!(input instanceof HTMLInputElement)) return;
+  // Shift+Click: 블록 선택
+  document.addEventListener(
+    "mousedown",
+    (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
+      if (!t.classList.contains("cell")) return;
+      if (!t.dataset.grid) return;
 
-  const grid = (input.dataset.grid || "");
+      // Shift 누른 상태면: anchor가 없으면 현재를 anchor로, 있으면 anchor~현재 사각형 선택
+      if (e.shiftKey) {
+        // 같은 컨텍스트가 아니면 anchor를 새로 잡고 시작
+        if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, __getCellKey(t))) {
+          __setAnchor(t);
+          __clearCellBlockSelection();
+          t.classList.add("block-selected");
+          return;
+        }
 
-  // ✅ 산출표(calc)는 "행 선택"으로 Shift/Ctrl 클릭 지원
-  if (grid === "calc") {
-    const tabId = input.dataset.tab || "";
-    const isCalcTab = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
-    if (!isCalcTab) return;
+        __applyCellBlockSelection(__finBlockSel.anchor, __getCellKey(t));
+        return;
+      }
 
-    const row = Number(input.dataset.row || 0);
-
-    // Shift+클릭: 앵커~현재행 범위 선택
-    if (e.shiftKey) {
-      e.preventDefault();
-      if (!__calcMultiIsSameContext(tabId)) __calcMultiBegin(tabId, row);
-      __calcMultiSetRange(tabId, __calcMulti.anchorRow ?? row, row);
-      __applyCalcRowSelectionStyles(tabId);
-      return;
-    }
-
-    // Ctrl+클릭: 현재 행 토글
-    if (e.ctrlKey) {
-      e.preventDefault();
-      __calcMultiToggleRow(tabId, row);
-      __applyCalcRowSelectionStyles(tabId);
-      return;
-    }
-
-    // 일반 클릭: 단일 선택(앵커 갱신)
-    __calcMultiBegin(tabId, row);
-    __applyCalcRowSelectionStyles(tabId);
-    return;
-  }
-
-  // ✅ code/var 등은 기존 "셀 블록선택" 로직 유지
-  if (e.shiftKey) {
-    e.preventDefault(); // 드래그 방지
-    __handleShiftClickCell(input);
-  } else {
-    __handleNormalClickCell(input);
-  }
-}, true);
-
-
-  // (2) 바깥 클릭하면 블록선택 해제
-  document.addEventListener("mousedown", (e) => {
-    const input = e.target?.closest?.("input.cell");
-    if (input) return;
-    __clearCellBlockSelection();
-  }, true);
-
-  // (3) Ctrl+C : 선택된 블록이 있을 때만 가로채서 복사
-  document.addEventListener("keydown", (e) => {
-    if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
-
-    // input 편집 중이면(커서 선택 복사) 기본 동작 유지
-    const ae = document.activeElement;
-    if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
-
-    const hasBlock = !!document.querySelector("input.cell.block-selected");
-    if (!hasBlock) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    __copySelectedBlockToClipboard();
-  }, true);
+      // Shift 없이 클릭: anchor 갱신(다음 Shift 선택 기준점)
+      __setAnchor(t);
+    },
+    true
+  );
 }
+
 
 
 /* ============================
