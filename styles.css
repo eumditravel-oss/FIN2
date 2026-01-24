@@ -1307,107 +1307,46 @@ tr.remark-row .cell::placeholder,
   opacity: 1 !important;
 }
 
-/* =========================
-   ✅ 비고 컬럼만 더 어둡게 (산출식 컬럼은 그대로)
-   - calc-table : 비고가 "마지막 컬럼"이라는 전제
-   - var-table  : [변수/산식/값/비고]에서 비고가 4번째 컬럼
-   - code-table : 비고가 마지막 컬럼인 경우 포함
-   ========================= */
-:root{
-  --noteBg: #e1e1e1;      /* 비고 배경(더 어둡게) */
-  --noteText: #666;       /* 비고 글자 */
-  --noteBorder: #c2c2c2;  /* 비고 테두리 */
-  --notePh: #8a8a8a;      /* 비고 placeholder */
-}
-
-/* ✅ 산출표(계산표) 비고 = 마지막 컬럼만 */
-table.calc-table tbody td:last-child .cell{
-  background: var(--noteBg) !important;
-  color: var(--noteText) !important;
-  border-color: var(--noteBorder) !important;
-}
-table.calc-table tbody td:last-child .cell::placeholder{
-  color: var(--notePh) !important;
-  opacity: 1 !important;
-}
-
-/* ✅ 변수표 비고 = 4번째 컬럼만 (변수/산식/값/비고) */
-table.var-table tbody td:nth-child(4) .cell{
-  background: var(--noteBg) !important;
-  color: var(--noteText) !important;
-  border-color: var(--noteBorder) !important;
-}
-table.var-table tbody td:nth-child(4) .cell::placeholder{
-  color: var(--notePh) !important;
-  opacity: 1 !important;
-}
-
-/* ✅ 코드표(있다면) 비고 = 마지막 컬럼만 */
-table.code-table tbody td:last-child .cell{
-  background: var(--noteBg) !important;
-  color: var(--noteText) !important;
-  border-color: var(--noteBorder) !important;
-}
-table.code-table tbody td:last-child .cell::placeholder{
-  color: var(--notePh) !important;
-  opacity: 1 !important;
-}
 
 
 /* =========================================================
-   ✅ 비고 입력칸 "확실히" 구별되게 (산출식은 그대로)
-   - placeholder="비고" 인 .cell만 타겟 (가장 안전/확실)
+   ✅ "ZZZ 비고 행"만 구분되게 (행 전체 톤 다운)
+   ✅ 단, 산출식 칸은 기존 밝은색 유지
    ========================================================= */
 :root{
-  --noteBg: #d2d2d2;          /* 더 진한 회색 */
-  --noteBg2:#c9c9c9;          /* 살짝 그라데이션용 */
-  --noteText: #3f3f3f;        /* 글자 더 또렷 */
-  --noteBorder: #8f8f8f;      /* 테두리 확실 */
-  --notePh: #616161;          /* placeholder 진하게 */
+  --remarkRowBg: rgba(0,0,0,.07);   /* 행 배경(살짝만 어둡게) */
+  --remarkRowBd: rgba(0,0,0,.10);   /* 행 테두리 느낌 */
 }
 
-/* ✅ 비고 칸만 스타일링 */
-.cell[placeholder="비고"]{
-  background: linear-gradient(180deg, var(--noteBg), var(--noteBg2)) !important;
-  color: var(--noteText) !important;
-
-  /* 오렌지 테두리 대신 "비고 전용" 테두리 */
-  border-color: var(--noteBorder) !important;
-
-  /* ✅ 왼쪽 오렌지 바 + 살짝 음영으로 구별감 */
-  box-shadow:
-    inset 6px 0 0 rgba(240,138,36,.95),
-    inset 0 0 0 1px rgba(255,255,255,.55),
-    0 2px 10px rgba(0,0,0,.06) !important;
+/* 1) ZZZ 비고 행: row 전체 배경 */
+table.calc-table tbody tr.calc-remark-row > td,
+table.calc-table tbody tr.remark-row > td{
+  background: var(--remarkRowBg) !important;
 }
 
-/* placeholder도 더 선명 */
-.cell[placeholder="비고"]::placeholder{
-  color: var(--notePh) !important;
-  opacity: 1 !important;
+/* 2) ZZZ 비고 행: input도 기본 톤 다운(※ 산출식 제외는 아래에서 복구) */
+table.calc-table tbody tr.calc-remark-row .cell,
+table.calc-table tbody tr.remark-row .cell{
+  background: rgba(255,255,255,.85) !important; /* 입력칸은 너무 죽지 않게 */
+  border-color: var(--remarkRowBd) !important;
+  color: rgba(0,0,0,.70) !important;
 }
 
-/* 포커스 시: 비고는 "회색 기반 + 오렌지 링"으로 강조 */
-.cell[placeholder="비고"]:focus,
-.cell[placeholder="비고"][data-editing="1"]{
-  border-color: rgba(240,138,36,.85) !important;
-  box-shadow:
-    inset 6px 0 0 rgba(240,138,36,1),
-    0 0 0 4px rgba(240,138,36,.18),
-    0 8px 18px rgba(0,0,0,.10) !important;
+/* 3) ✅ 핵심: 산출식 칸은 "원래 cell 스타일"로 되돌리기
+   - 구조상 산출식이 6번째 컬럼(예: No/코드/품명/규격/단위/산출식/...)이면 nth-child(6)
+   - 만약 실제 컬럼 순서가 다르면 숫자만 바꾸면 됨
+*/
+table.calc-table tbody tr.calc-remark-row td:nth-child(6) .cell,
+table.calc-table tbody tr.remark-row td:nth-child(6) .cell{
+  background: rgba(255,255,255,.96) !important;               /* 기존 밝은색 유지 */
+  border-color: rgba(240,138,36,.45) !important;              /* 기존 오렌지 보더 유지 */
+  color: var(--ink) !important;
+  box-shadow: none !important;                                 /* 혹시 남아있는 그림자 제거 */
 }
 
-/* ✅ 비고 헤더(th)도 살짝 톤 넣어서 “컬럼” 느낌 강화 (변수표는 4번째가 비고) */
-table.var-table thead th:nth-child(4){
-  background: linear-gradient(180deg, rgba(240,138,36,.14), rgba(0,0,0,.02)) !important;
-  border-bottom-color: rgba(240,138,36,.75) !important;
+/* 4) (선택) ZZZ 행 좌측에 은은한 바 하나로 더 구분감 */
+table.calc-table tbody tr.calc-remark-row > td:first-child,
+table.calc-table tbody tr.remark-row > td:first-child{
+  box-shadow: inset 4px 0 0 rgba(240,138,36,.55) !important;
 }
-
-/* (옵션) 산출표/코드표에서 비고가 실제로 마지막 컬럼이라면 헤더도 같이 */
-table.calc-table thead th:last-child,
-table.code-table thead th:last-child{
-  background: linear-gradient(180deg, rgba(240,138,36,.14), rgba(0,0,0,.02)) !important;
-  border-bottom-color: rgba(240,138,36,.75) !important;
-}
-
 
