@@ -1218,16 +1218,22 @@ input.cell.block-selected{
 
 
 /* =========================
-   ✅ 비고(ZZZ) 행: tr에 클래스 붙으면 무조건 회색
+   ✅ 비고(ZZZ) 행: 기본 톤(진하게)
+   ✅ 단, 산출식 칸은 아래에서 별도로 복구할거라 여기서 제외
 ========================= */
-tr.calc-remark-row td,
-tr.calc-remark-row .cell,
-tr.remark-row td,
-tr.remark-row .cell{
-  background: #f1f1f1 !important;
-  color: #8a8a8a !important;
-  border-color: #ddd !important;
+table.calc-table tbody tr.calc-remark-row > td,
+table.calc-table tbody tr.remark-row > td{
+  background: rgba(0,0,0,.22) !important; /* ✅ 확실히 진하게 */
+  color: rgba(0,0,0,.70) !important;
 }
+
+table.calc-table tbody tr.calc-remark-row .cell,
+table.calc-table tbody tr.remark-row .cell{
+  background: rgba(255,255,255,.70) !important;
+  border-color: rgba(0,0,0,.28) !important;
+  color: rgba(0,0,0,.75) !important;
+}
+
 
 /* readonly도 더 또렷하게 */
 tr.calc-remark-row .cell.readonly,
@@ -1250,14 +1256,7 @@ tr.remark-row select{
 
 
 
-/* =========================
-   비고(ZZZ) 행 전용 스타일
-========================= */
-.calc-remark-row input {
-  background: #f1f1f1 !important;
-  color: #8a8a8a !important;
-  border-color: #ddd !important;
-}
+
 
 /* placeholder도 흐리게 */
 .calc-remark-row input::placeholder {
@@ -1281,24 +1280,7 @@ tr.remark-row select{
    ✅ 비고(ZZZ) 행 톤 다운(더 어둡게) - OVERRIDE
    맨 아래에 추가하세요
 ========================= */
-:root{
-  --remarkBg: #e7e7e7;     /* 배경 더 어둡게 */
-  --remarkText: #6f6f6f;   /* 글자 더 진하게 */
-  --remarkBorder: #c9c9c9; /* 테두리 더 진하게 */
-  --remarkPh: #8f8f8f;     /* placeholder 더 진하게 */
-}
 
-tr.calc-remark-row td,
-tr.calc-remark-row .cell,
-tr.remark-row td,
-tr.remark-row .cell,
-.calc-remark-row input,
-tr.calc-remark-row select,
-tr.remark-row select{
-  background: var(--remarkBg) !important;
-  color: var(--remarkText) !important;
-  border-color: var(--remarkBorder) !important;
-}
 
 tr.calc-remark-row .cell::placeholder,
 tr.remark-row .cell::placeholder,
@@ -1313,10 +1295,7 @@ tr.remark-row .cell::placeholder,
    ✅ "ZZZ 비고 행"만 구분되게 (행 전체 톤 다운)
    ✅ 단, 산출식 칸은 기존 밝은색 유지
    ========================================================= */
-:root{
-  --remarkRowBg: rgba(0,0,0,.07);   /* 행 배경(살짝만 어둡게) */
-  --remarkRowBd: rgba(0,0,0,.10);   /* 행 테두리 느낌 */
-}
+
 
 /* 1) ZZZ 비고 행: row 전체 배경 */
 table.calc-table tbody tr.calc-remark-row > td,
@@ -1356,11 +1335,12 @@ table.calc-table tbody tr.remark-row > td:first-child{
    ✅ 산출식 칸은 기존 밝은색 유지
    ========================================================= */
 :root{
-  --remarkRowBg: rgba(0,0,0,.16);   /* ✅ 더 진하게 */
-  --remarkRowLine: rgba(0,0,0,.18);
-  --remarkRowLeft: rgba(240,138,36,.95);
-  --remarkCellBg: rgba(255,255,255,.78); /* 행 안 input은 살짝만 다운 */
+  --remarkRowBg: rgba(0,0,0,.28);     /* ✅ 더 진하게 */
+  --remarkRowLine: rgba(0,0,0,.26);   /* ✅ 라인도 진하게 */
+  --remarkRowLeft: rgba(240,138,36,.98);
+  --remarkCellBg: rgba(255,255,255,.62); /* ✅ input도 더 톤다운 */
 }
+
 
 /* 1) ZZZ 비고 행: td 배경 + 위/아래 라인으로 덩어리감 */
 table.calc-table tbody tr.calc-remark-row > td,
@@ -1390,7 +1370,9 @@ table.calc-table tbody tr.remark-row .cell{
 
 /* 4) ✅ 산출식 칸은 원래대로(밝게 + 오렌지 보더) */
 table.calc-table tbody tr.calc-remark-row td:nth-child(6) .cell,
-table.calc-table tbody tr.remark-row td:nth-child(6) .cell{
+table.calc-table tbody tr.remark-row td:nth-child(6) .cell,
+table.calc-table tbody tr.calc-remark-row td:nth-child(7) .cell,
+table.calc-table tbody tr.remark-row td:nth-child(7) .cell{
   background: rgba(255,255,255,.96) !important;
   border-color: rgba(240,138,36,.45) !important;
   color: var(--ink) !important;
