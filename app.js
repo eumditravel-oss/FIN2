@@ -1686,49 +1686,64 @@ if (e.key === "Escape") {
      - (v12.3) 환산단위/환산계수 있으면 converted 기준 집계
   ============================ */
   function buildSummaryRows(tabId) {
-    const bucket = state[tabId];
-    const map = new Map();
+  const bucket = state[tabId];
+  const map = new Map();
 
-    bucket.sections.forEach((sec) => {
-      const count = Number(sec.count ?? 1);
-      const mult = Number.isFinite(count) && count > 0 ? count : 1;
+  bucket.sections.forEach((sec) => {
+    const count = Number(sec.count ?? 1);
+    const mult = Number.isFinite(count) && count > 0 ? count : 1;
 
-      // section별로 vars/rows 값이 계산되어 있어야 함
-      // recomputeSection는 activeSection만 계산하므로, 여기선 간단히 현재 저장값(value/converted)을 사용
-      sec.rows.forEach((r) => {
-        const code = (r.code || "").trim();
-if (!code) return;
+    sec.rows.forEach((r) => {
+      const code = (r.code || "").trim();
+      if (!code) return;
 
-// ✅ Z 5개 이상(비고/메모용 코드 포함)은 집계에서 제외
-if (hasAtLeastFiveZ(code) || isRemarkCode(code)) return;
+      // ✅ Z 5개 이상(비고/메모용 코드 포함) + 비고코드 집계 제외
+      if (hasAtLeastFiveZ(code) || isRemarkCode(code)) return;
 
-const info = codeLookup(code);
+      const info = codeLookup(code);
 
-        const unit = info?.unit || r.unit || "";
-        const surcharge = (r.surchargePct == null ? (info?.surcharge ?? null) : r.surchargePct);
+      const unit = info?.unit || r.unit || "";
+      const surcharge = (r.surchargePct == null ? (info?.surcharge ?? null) : r.surchargePct);
 
-        // 환산계수 있으면 converted 기준
-        const hasConv = r.convFactor != null && Number.isFinite(Number(r.convFactor)) && Number(r.convFactor) !== 0;
-        const qty = hasConv ? Number(r.converted || 0) : Number((r.value || 0) * (r.surchargeMul || 1));
+      // 할증 배율
+      const mul = Number.isFinite(Number(r.surchargeMul)) && Number(r.surchargeMul) > 0 ? Number(r.surchargeMul) : 1;
 
-        const key = code.toUpperCase();
-        const prev = map.get(key) || {
-          code,
-          name: info?.name || r.name || "",
-          spec: info?.spec || r.spec || "",
-          unit,
-          convUnit: info?.convUnit || r.convUnit || "",
-          convFactor: info?.convFactor ?? r.convFactor ?? null,
-          surchargePct: surcharge,
-          qty: 0,
-        };
-        prev.qty += qty * mult;
-        map.set(key, prev);
-      });
+      // 환산계수 유무 판단
+      const cfRaw = (r.convFactor ?? info?.convFactor ?? null);
+      const hasConv = cfRaw != null && Number.isFinite(Number(cfRaw)) && Number(cfRaw) !== 0;
+      const cf = hasConv ? Number(cfRaw) : null;
+
+      // ✅ 할증 전 수량: (base value) * convFactor(있으면)
+      const base = Number(r.value || 0);
+      const qtyBefore = hasConv ? (base * cf) : base;
+
+      // ✅ 할증 후 수량: 기존 로직 그대로
+      // - 환산이 있으면 converted(=할증 반영 후 * 환산계수)
+      // - 환산이 없으면 value * surchargeMul
+      const qtyAfter = hasConv ? Number(r.converted || 0) : (base * mul);
+
+      const key = code.toUpperCase();
+      const prev = map.get(key) || {
+        code,
+        name: info?.name || r.name || "",
+        spec: info?.spec || r.spec || "",
+        unit,
+        convUnit: info?.convUnit || r.convUnit || "",
+        convFactor: info?.convFactor ?? r.convFactor ?? null,
+        surchargePct: surcharge,
+        qtyBefore: 0,
+        qtyAfter: 0,
+      };
+
+      prev.qtyBefore += qtyBefore * mult;
+      prev.qtyAfter  += qtyAfter  * mult;
+      map.set(key, prev);
     });
+  });
 
-    return [...map.values()].sort((a, b) => String(a.code).localeCompare(String(b.code)));
-  }
+  return [...map.values()].sort((a, b) => String(a.code).localeCompare(String(b.code)));
+}
+
 
   function renderSummaryTab(srcTabId, title) {
     const rows = buildSummaryRows(srcTabId);
@@ -1744,7 +1759,7 @@ const info = codeLookup(code);
     table.style.tableLayout = "fixed";
     table.style.width = "100%";
     table.style.minWidth = "100%";
-    table.appendChild(buildColGroupFromWeights([0.9, 2.4, 2.4, 0.8, 0.8, 0.9, 0.9, 1.4, 1.2]));
+    table.appendChild(buildColGroupFromWeights([0.9, 2.4, 2.4, 0.8, 0.8, 0.9, 0.9, 1.2, 1.4, 1.2]));
 
     const thead = el("thead", {}, [
       el("tr", {}, [
@@ -1755,25 +1770,34 @@ const info = codeLookup(code);
         el("th", {}, ["할증"]),
         el("th", {}, ["환산단위"]),
         el("th", {}, ["환산계수"]),
-        el("th", {}, ["수량(환산/할증 반영)"]),
+        el("th", {}, ["수량(할증 전)"]),
+        el("th", {}, ["수량(할증 후)"]),
         el("th", {}, ["비고"]),
       ])
     ]);
 
-    const tbody = el("tbody", {}, []);
-    rows.forEach((r) => {
-      tbody.appendChild(el("tr", {}, [
-        el("td", {}, [r.code]),
-        el("td", {}, [r.name || ""]),
-        el("td", {}, [r.spec || ""]),
-        el("td", {}, [r.unit || ""]),
-        el("td", {}, [r.surchargePct == null ? "" : String(r.surchargePct)]),
-        el("td", {}, [r.convUnit || ""]),
-        el("td", {}, [r.convFactor == null ? "" : String(r.convFactor)]),
-        el("td", {}, [String(Math.round((Number(r.qty) || 0) * 1000) / 1000)]),
-        el("td", {}, [""]),
-      ]));
-    });
+    const round3 = (n) => String(Math.round((Number(n) || 0) * 1000) / 1000);
+
+rows.forEach((r) => {
+  tbody.appendChild(el("tr", {}, [
+    el("td", {}, [r.code]),
+    el("td", {}, [r.name || ""]),
+    el("td", {}, [r.spec || ""]),
+    el("td", {}, [r.unit || ""]),
+    el("td", {}, [r.surchargePct == null ? "" : String(r.surchargePct)]),
+    el("td", {}, [r.convUnit || ""]),
+    el("td", {}, [r.convFactor == null ? "" : String(r.convFactor)]),
+
+    // ✅ 추가된 컬럼
+    el("td", {}, [round3(r.qtyBefore)]),
+
+    // ✅ 기존 컬럼(문구만 변경): 할증 후
+    el("td", {}, [round3(r.qtyAfter)]),
+
+    el("td", {}, [""]),
+  ]));
+});
+
 
     table.appendChild(thead);
     table.appendChild(tbody);
