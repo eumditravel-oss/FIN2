@@ -1626,39 +1626,67 @@ table.calc-table tbody tr.calc-remark-row.row-selected .cell.block-selected{
 
 
 /* =========================================================
-   ✅ FIX: 비고(ZZZ) 행 위에서도 block-selected가 항상 최상위
-   - 행 배경/행 강조(row-selected)보다 무조건 위
+   ✅ FINAL: 블록 선택은 "회색(Z5/비고)"보다 위에서 주황 채움이 덮이게
+   - Z5(진한 회색 행) / remark(비고 행) / row-selected 모두 동일하게 강하게 표시
+   - 반드시 styles.css 맨 아래에 두기
    ========================================================= */
 
-/* 1️⃣ block-selected 자체를 최상위 레이어로 */
+/* 1) block-selected는 무조건 최상위 */
 .cell.block-selected{
   position: relative !important;
-  z-index: 9999 !important;
+  z-index: 99999 !important;
 }
 
-/* 2️⃣ 비고(remark) 행 위의 block-selected는
-       "채움"보다 "링 + 외곽선" 위주로 */
-table.calc-table tbody tr.remark-row .cell.block-selected,
-table.calc-table tbody tr.calc-remark-row .cell.block-selected{
+/* 2) 회색행 위에서도 “주황 채움”이 확실히 보이도록 (핵심) */
+.calc-table tbody tr.z5-row .cell.block-selected,
+.calc-table tbody tr.remark-row .cell.block-selected,
+.calc-table tbody tr.calc-remark-row .cell.block-selected{
+  /* ✅ 회색 위에 주황이 덮이는 느낌(채움) */
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.55),
+    rgba(240,138,36,.38)
+  ) !important;
 
-  /* ❌ 행색과 섞이는 주황 채움 제거 */
-  background: rgba(255,255,255,.92) !important;
+  /* ✅ 보더도 주황으로 고정 */
+  border-color: rgba(240,138,36,1) !important;
 
-  /* ✅ 두꺼운 오렌지 링 */
+  /* ✅ 링은 유지하되, “채움”이 주인공 */
   box-shadow:
-    0 0 0 3px rgba(255,255,255,1),     /* 흰 링 */
-    0 0 0 7px rgba(240,138,36,1),      /* 오렌지 링 */
-    0 0 0 11px rgba(0,0,0,.18) !important; /* 대비용 외곽 */
+    0 0 0 3px rgba(255,255,255,.98),   /* 흰 링 */
+    0 0 0 8px rgba(240,138,36,1),      /* 주황 링 */
+    0 14px 28px rgba(0,0,0,.20),       /* 떠보이게 */
+    inset 0 0 0 2px rgba(0,0,0,.10) !important;
 
-  /* ✅ 회색 행 위에서도 경계 확실 */
-  outline: 3px solid rgba(0,0,0,.35) !important;
+  outline: 3px solid rgba(0,0,0,.24) !important;
   outline-offset: -1px !important;
+
+  color: var(--ink) !important;
 }
 
-/* 3️⃣ 행 선택(row-selected)과 겹쳐도 block가 이김 */
-table.calc-table tbody tr.row-selected .cell.block-selected{
-  z-index: 10000 !important;
+/* 3) row-selected(행 선택) + block-selected 겹치면 block-selected가 무조건 이김 */
+.calc-table tbody tr.row-selected .cell.block-selected{
+  z-index: 100000 !important;
 }
+
+/* 4) focus 상태는 더 강하게 */
+.calc-table tbody .cell.block-selected:focus{
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.62),
+    rgba(240,138,36,.44)
+  ) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,1),
+    0 0 0 9px rgba(240,138,36,1),
+    0 0 0 14px rgba(240,138,36,.22),
+    0 18px 34px rgba(0,0,0,.26) !important;
+
+  outline: 3px solid rgba(0,0,0,.30) !important;
+  z-index: 110000 !important;
+}
+
 
 
 
