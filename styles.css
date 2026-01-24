@@ -1212,6 +1212,64 @@ table.calc-table tr.row-selected .cell.block-selected{
   box-shadow: inset 4px 0 0 rgba(240,138,36,.85);
 }
 
+/* =========================================================
+   ✅ 컬럼 리사이즈 힌트(세로 라인) - 테이블(colgroup) 구조용
+   - 항상 은은하게 보이게 + hover 시 조금 진하게
+   ========================================================= */
+
+/* 1) 헤더(th) 오른쪽 경계에 라인 표시 (마지막 컬럼 제외) */
+table.calc-table thead th:not(:last-child),
+table.code-table thead th:not(:last-child),
+table.var-table thead th:not(:last-child){
+  position: sticky; /* 이미 있지만 안전 */
+}
+
+/* 세로 라인 */
+table.calc-table thead th:not(:last-child)::after,
+table.code-table thead th:not(:last-child)::after,
+table.var-table thead th:not(:last-child)::after{
+  content:"";
+  position:absolute;
+  top: 8px;
+  bottom: 8px;
+  right: -1px;                 /* 경계선에 딱 붙게 */
+  width: 2px;                  /* 눈에 보이게 2px */
+  border-radius: 2px;
+  background: rgba(0,0,0,.22); /* ✅ 기본 회색 라인 */
+  opacity: .35;                /* ✅ 은은하게 */
+  pointer-events: none;        /* 드래그/클릭 방해 X */
+}
+
+/* 2) 헤더에 마우스 올리면 라인 조금 진하게 */
+table.calc-table thead th:hover::after,
+table.code-table thead th:hover::after,
+table.var-table thead th:hover::after{
+  opacity: .75;
+  background: rgba(0,0,0,.32);
+}
+
+/* 3) (선택) 경계 근처 “그립 영역” 느낌을 아주 약하게 주고 싶으면 */
+table.calc-table thead th:not(:last-child)::before,
+table.code-table thead th:not(:last-child)::before,
+table.var-table thead th:not(:last-child)::before{
+  content:"";
+  position:absolute;
+  top: 0;
+  bottom: 0;
+  right: -6px;                 /* 라인 주변에 얇은 영역 */
+  width: 12px;                 /* 잡는 느낌(시각적) */
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0,0,0,.04),
+    transparent
+  );
+  opacity: .35;
+  pointer-events: none;
+}
+
+
+
 /* 셀 input */
 .project-cell-input{
   width: 100%;
