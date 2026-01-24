@@ -2954,7 +2954,7 @@ function bindGlobalHotkeysOnce() {
       return;
     }
 
-        // =========================
+    // =========================
     // Ctrl + F10 : 아래로 1행 추가 + 코드 자동입력(REMARK_CODE)
     // =========================
     if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "F10") {
@@ -2966,12 +2966,12 @@ function bindGlobalHotkeysOnce() {
       if (!isCalcTab) return;
 
       // 1) 현재 포커스가 산출표 셀인지 확인
-      const ae = document.activeElement;
-      if (!(ae instanceof HTMLInputElement)) return;
+      const ae2 = document.activeElement;
+      if (!(ae2 instanceof HTMLInputElement)) return;
 
-      const row = Number(ae.dataset.row);
-      const grid = ae.dataset.grid;
-      const tab = ae.dataset.tab;
+      const row = Number(ae2.dataset.row);
+      const grid = ae2.dataset.grid;
+      const tab = ae2.dataset.tab;
 
       // 산출표 셀인지 최소 검증
       if (grid !== "calc" || tab !== tabId || !Number.isFinite(row)) {
@@ -2995,71 +2995,25 @@ function bindGlobalHotkeysOnce() {
         }
 
         codeInput.value = REMARK_CODE;
-codeInput.dispatchEvent(new Event("input", { bubbles: true }));
-codeInput.dispatchEvent(new Event("change", { bubbles: true }));
+        codeInput.dispatchEvent(new Event("input", { bubbles: true }));
+        codeInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-syncRemarkRowFromCodeInput(codeInput);   // ✅ 추가: 비고행 회색 처리 클래스 부여
+        syncRemarkRowFromCodeInput(codeInput);   // ✅ 비고행 회색 처리 클래스 부여
 
-         
-
-safeFocus(codeInput);
-ensureScrollIntoView(codeInput);
-
+        safeFocus(codeInput);
+        ensureScrollIntoView(codeInput);
       });
 
       return;
     }
-
-
-
-  }, true); // ✅ keydown 리스너 닫기
-} // ✅ bindGlobalHotkeysOnce 닫기
-
-
-
-
-       
-
-
-
-  // ✅ 2) initAppOnce에서 다시 btnProject를 “중복 바인딩”하지 않는다
-  //    (중복 바인딩은 필요 없고, TDZ 에러 원인이 됐음)
-
-  // ✅ 3) 모달 닫기(backdrop/ESC)는 1회만 걸리도록 가드 추가
-  const modal = document.getElementById("projectModal");
-  if (modal && !modal.__finModalBound) {
-    modal.__finModalBound = true;
-
-    modal.addEventListener("click", (e) => {
-      const t = e.target;
-      if (t && t.getAttribute && t.getAttribute("data-close") === "1") closeProjectModal();
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      const m = document.getElementById("projectModal");
-      if (!m) return;
-      if (m.getAttribute("aria-hidden") === "false") closeProjectModal();
-    });
-  }
-
-    // ✅ 4) 최초 UI 반영
-  updateProjectHeaderUI();
-  render();
-
-  // ✅ 5) 전역 단축키 바인딩 (Ctrl+., Ctrl+B, Ctrl+F3 등)
-  bindGlobalHotkeysOnce();
-
-  raf2(() => {
-    updateStickyVars();
-    applyPanelStickyTop();
-    updateViewFillHeight();
-    updateScrollHeights();
-  });
+  }, true); // ✅ keydown 리스너 캡처링
 }
 
 
-   function getRemarkItemFromCodeMaster() {
+/* =========================================================
+   ✅ codeMaster에서 '비고(ZZZ..)' 코드 항목 찾아오기
+   ========================================================= */
+function getRemarkItemFromCodeMaster() {
   const REMARK_CODE_LOCAL = "ZZZZZZZZZZZZZZZZZ";
   const cm = Array.isArray(state?.codeMaster) ? state.codeMaster : [];
 
@@ -3085,20 +3039,18 @@ function normalizeCodeItem(it) {
     specs: it.specs ?? it.spec ?? it["규격"] ?? it.Specifications ?? "",
     unit: it.unit ?? it["단위"] ?? it.Unit ?? "",
     surcharge: it.surcharge ?? it["할증"] ?? "",
-    convUnit: it.convUnit ?? it.convUnit ?? it["환산단위"] ?? "",
+    convUnit: it.convUnit ?? it["환산단위"] ?? "",
     convFactor: it.convFactor ?? it["환산계수"] ?? "",
     note: it.note ?? it["비고"] ?? ""
   };
 }
 
 
-
-
-   // =========================================================
-// ✅ Ctrl+Z : 블록 선택 / 행 선택 해제 (1회 바인딩)
-// - 선택이 있을 때만 가로채고
-// - 선택이 없으면 기본 Undo 동작 유지
-// =========================================================
+/* =========================================================
+   ✅ Ctrl+Z : 블록 선택 / 행 선택 해제 (1회 바인딩)
+   - 선택이 있을 때만 가로채고
+   - 선택이 없으면 기본 Undo 동작 유지
+   ========================================================= */
 if (!window.__finClearSelectionHotkeyBound) {
   window.__finClearSelectionHotkeyBound = true;
 
@@ -3108,16 +3060,11 @@ if (!window.__finClearSelectionHotkeyBound) {
       return;
     }
 
-    const hasCellBlock =
-      !!document.querySelector("input.cell.block-selected");
-
-    const hasCalcMulti =
-      !!__calcMulti && __calcMulti.active;
+    const hasCellBlock = !!document.querySelector("input.cell.block-selected");
+    const hasCalcMulti = !!__calcMulti && __calcMulti.active;
 
     // ✅ 선택이 없으면 → 원래 Ctrl+Z(Undo) 그대로
-    if (!hasCellBlock && !hasCalcMulti) {
-      return;
-    }
+    if (!hasCellBlock && !hasCalcMulti) return;
 
     // ✅ 선택이 있으면 → 해제 전용 단축키로 사용
     e.preventDefault();
@@ -3210,157 +3157,191 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
   }
 }
 
-  // =========================================================
-  // ✅ 일반 클릭 시 앵커만 갱신 + (필요 시) 기존 블록 선택 해제
-  // - calc-grid는 위에서 "행 선택" 전용 mousedown 핸들러가 처리 중이므로
-  //   여기서는 code/var 등 "셀 블록 선택" 전용으로 처리
-  // =========================================================
-        function __handleNormalClickCell(input) {
-      if (!(input instanceof HTMLInputElement)) return;
+// ✅ 일반 클릭(앵커만 갱신 + 기존 블록 해제)
+function __handleNormalClickCell(input) {
+  if (!(input instanceof HTMLInputElement)) return;
 
-      // ✅ calc는 행선택 로직이 전담하므로 여기서 제외
-      const grid = input.dataset.grid || "";
-      if (grid === "calc") return;
+  // ✅ calc는 행선택 로직이 전담하므로 여기서 제외
+  const grid = input.dataset.grid || "";
+  if (grid === "calc") return;
 
-      // 기존 블록 선택은 일반 클릭이면 해제
-      __clearCellBlockSelection();
-      __setAnchor(input);
-    }
+  __clearCellBlockSelection();
+  __setAnchor(input);
+}
 
-    
+function __handleShiftClickCell(input) {
+  if (!(input instanceof HTMLInputElement)) return;
 
-    function __handleShiftClickCell(input) {
-      if (!(input instanceof HTMLInputElement)) return;
+  const grid = input.dataset.grid || "";
+  // ✅ calc는 위에서 행선택 전용으로 처리하므로 셀블록은 제외
+  if (grid === "calc") return;
 
-      const grid = input.dataset.grid || "";
-      // ✅ calc는 위에서 행선택 전용으로 처리하므로 셀블록은 제외
-      if (grid === "calc") return;
+  const targetKey = __getCellKey(input);
+  if (!targetKey.grid) return;
 
-      const targetKey = __getCellKey(input);
-      if (!targetKey.grid) return;
-
-      // anchor가 없거나 컨텍스트 다르면 anchor를 현재로 잡고 1셀만 선택
-      if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
-        __clearCellBlockSelection();
-        __setAnchor(input);
-        input.classList.add("block-selected");
-        return;
-      }
-
-      // 기존 선택 해제 후, 사각형 블록 선택 적용
-      __clearCellBlockSelection();
-      __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
-    }
-
-    // ✅ 선택 셀들을 TSV로 복사 (Ctrl+C)
-    function __copySelectedBlockToClipboard() {
-      const selected = Array.from(document.querySelectorAll("input.cell.block-selected"));
-      if (!selected.length) return false;
-
-      // 컨텍스트 기준(같은 grid/tab만)
-      const firstKey = __getCellKey(selected[0]);
-      const ctxCells = selected
-        .map(inp => ({ inp, k: __getCellKey(inp) }))
-        .filter(x => __sameContext(firstKey, x.k));
-
-      if (!ctxCells.length) return false;
-
-      // 범위 계산
-      const rows = ctxCells.map(x => x.k.row);
-      const cols = ctxCells.map(x => x.k.col);
-      const r1 = Math.min(...rows), r2 = Math.max(...rows);
-      const c1 = Math.min(...cols), c2 = Math.max(...cols);
-
-      // (row,col)->value 맵
-      const map = new Map();
-      ctxCells.forEach(({ inp, k }) => {
-        map.set(`${k.row},${k.col}`, inp.value ?? "");
-      });
-
-      // TSV 만들기
-      const lines = [];
-      for (let r = r1; r <= r2; r++) {
-        const line = [];
-        for (let c = c1; c <= c2; c++) {
-          line.push(String(map.get(`${r},${c}`) ?? ""));
-        }
-        lines.push(line.join("\t"));
-      }
-      const tsv = lines.join("\n");
-
-      try {
-        navigator.clipboard?.writeText(tsv);
-      } catch {
-        // fallback
-        const ta = document.createElement("textarea");
-        ta.value = tsv;
-        ta.style.position = "fixed";
-        ta.style.left = "-9999px";
-        ta.style.top = "0";
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        try { document.execCommand("copy"); } catch {}
-        document.body.removeChild(ta);
-      }
-      return true;
-    }
-
-    // ✅ 블록선택/앵커 관련 전역 이벤트 바인딩(1회)
-    if (!window.__finCellBlockBound2) {
-      window.__finCellBlockBound2 = true;
-
-      // (1) 클릭 처리: Shift면 블록선택 / 아니면 앵커 갱신 + 필요 시 기존 해제
-      document.addEventListener("mousedown", (e) => {
-        const input = e.target?.closest?.("input.cell");
-        if (!(input instanceof HTMLInputElement)) return;
-
-        // calc는 위에서 행선택 전용 mousedown이 처리하므로 여기서는 건너뜀
-        if ((input.dataset.grid || "") === "calc") return;
-
-        if (e.shiftKey) {
-          e.preventDefault(); // 드래그 방지
-          __handleShiftClickCell(input);
-        } else {
-          // 일반 클릭: 기존 선택 해제(선택이 있었고, 같은 컨텍스트가 아니면) + anchor 갱신
-          __handleNormalClickCell(input);
-        }
-      }, true);
-
-      // (2) 바깥 클릭하면 블록선택 해제(원하면 유지도 가능하지만, 보통 해제하는 게 UX 좋음)
-      document.addEventListener("mousedown", (e) => {
-        const input = e.target?.closest?.("input.cell");
-        if (input) return; // 셀 클릭이면 유지
-        // 모달/버튼 클릭 등에서도 유지하고 싶으면 여기 조건 추가 가능
-        __clearCellBlockSelection();
-      }, true);
-
-      // (3) Ctrl+C : 선택된 블록이 있을 때만 가로채서 복사
-      document.addEventListener("keydown", (e) => {
-        if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
-
-        // input 편집 중이면(커서 선택 복사) 기본 동작 유지
-        const ae = document.activeElement;
-        if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
-
-        const hasBlock = !!document.querySelector("input.cell.block-selected");
-        if (!hasBlock) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-        __copySelectedBlockToClipboard();
-      }, true);
-    }
-
-   } // ✅ initAppOnce() 끝
-
-    // ✅ DOMContentLoaded 시 init (반드시 IIFE 내부, 함수 밖)
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
-  } else {
-    initAppOnce();
+  // anchor가 없거나 컨텍스트 다르면 anchor를 현재로 잡고 1셀만 선택
+  if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
+    __clearCellBlockSelection();
+    __setAnchor(input);
+    input.classList.add("block-selected");
+    return;
   }
+
+  // 기존 선택 해제 후, 사각형 블록 선택 적용
+  __clearCellBlockSelection();
+  __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
+}
+
+// ✅ 선택 셀들을 TSV로 복사 (Ctrl+C)
+function __copySelectedBlockToClipboard() {
+  const selected = Array.from(document.querySelectorAll("input.cell.block-selected"));
+  if (!selected.length) return false;
+
+  // 컨텍스트 기준(같은 grid/tab만)
+  const firstKey = __getCellKey(selected[0]);
+  const ctxCells = selected
+    .map(inp => ({ inp, k: __getCellKey(inp) }))
+    .filter(x => __sameContext(firstKey, x.k));
+
+  if (!ctxCells.length) return false;
+
+  // 범위 계산
+  const rows = ctxCells.map(x => x.k.row);
+  const cols = ctxCells.map(x => x.k.col);
+  const r1 = Math.min(...rows), r2 = Math.max(...rows);
+  const c1 = Math.min(...cols), c2 = Math.max(...cols);
+
+  // (row,col)->value 맵
+  const map = new Map();
+  ctxCells.forEach(({ inp, k }) => {
+    map.set(`${k.row},${k.col}`, inp.value ?? "");
+  });
+
+  // TSV 만들기
+  const lines = [];
+  for (let r = r1; r <= r2; r++) {
+    const line = [];
+    for (let c = c1; c <= c2; c++) {
+      line.push(String(map.get(`${r},${c}`) ?? ""));
+    }
+    lines.push(line.join("\t"));
+  }
+  const tsv = lines.join("\n");
+
+  try {
+    navigator.clipboard?.writeText(tsv);
+  } catch {
+    // fallback
+    const ta = document.createElement("textarea");
+    ta.value = tsv;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch {}
+    document.body.removeChild(ta);
+  }
+  return true;
+}
+
+// ✅ 블록선택/앵커 관련 전역 이벤트 바인딩(1회)
+if (!window.__finCellBlockBound2) {
+  window.__finCellBlockBound2 = true;
+
+  // (1) 클릭 처리: Shift면 블록선택 / 아니면 앵커 갱신 + 기존 해제
+  document.addEventListener("mousedown", (e) => {
+    const input = e.target?.closest?.("input.cell");
+    if (!(input instanceof HTMLInputElement)) return;
+
+    // calc는 위에서 행선택 전용 mousedown이 처리하므로 여기서는 건너뜀
+    if ((input.dataset.grid || "") === "calc") return;
+
+    if (e.shiftKey) {
+      e.preventDefault(); // 드래그 방지
+      __handleShiftClickCell(input);
+    } else {
+      __handleNormalClickCell(input);
+    }
+  }, true);
+
+  // (2) 바깥 클릭하면 블록선택 해제
+  document.addEventListener("mousedown", (e) => {
+    const input = e.target?.closest?.("input.cell");
+    if (input) return;
+    __clearCellBlockSelection();
+  }, true);
+
+  // (3) Ctrl+C : 선택된 블록이 있을 때만 가로채서 복사
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
+
+    // input 편집 중이면(커서 선택 복사) 기본 동작 유지
+    const ae = document.activeElement;
+    if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
+
+    const hasBlock = !!document.querySelector("input.cell.block-selected");
+    if (!hasBlock) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    __copySelectedBlockToClipboard();
+  }, true);
+}
+
+
+/* =========================================================
+   ✅ initAppOnce (구조 정상화 + 1회 실행 가드)
+   ========================================================= */
+let __appInited = false;
+
+function initAppOnce() {
+  if (__appInited) return;
+  __appInited = true;
+
+  // ✅ 3) 모달 닫기(backdrop/ESC)는 1회만 걸리도록 가드 추가
+  const modal = document.getElementById("projectModal");
+  if (modal && !modal.__finModalBound) {
+    modal.__finModalBound = true;
+
+    modal.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute("data-close") === "1") closeProjectModal();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const m = document.getElementById("projectModal");
+      if (!m) return;
+      if (m.getAttribute("aria-hidden") === "false") closeProjectModal();
+    });
+  }
+
+  // ✅ 4) 최초 UI 반영
+  updateProjectHeaderUI();
+  render();
+
+  // ✅ 5) 전역 단축키 바인딩 (Ctrl+., Ctrl+B, Ctrl+F3, Ctrl+F10 등)
+  bindGlobalHotkeysOnce();
+
+  raf2(() => {
+    updateStickyVars();
+    applyPanelStickyTop();
+    updateViewFillHeight();
+    updateScrollHeights();
+  });
+}
+
+
+// ✅ DOMContentLoaded 시 init (반드시 IIFE 내부, 함수 밖)
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
+} else {
+  initAppOnce();
+}
 })(); // ✅ IIFE 끝
+
 
 
 
