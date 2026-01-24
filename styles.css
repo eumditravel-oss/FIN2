@@ -1758,60 +1758,58 @@ table.calc-table tbody tr.remark-row td:nth-child(6) > .cell.block-selected{
 }
 
 
-/* =========================================================
-   ✅ Column Resize Handles (minimal UI, keeps current design)
-   ========================================================= */
-
-/* 테이블 리사이즈 안정화 */
-table.calc-table{
-  table-layout: fixed; /* 폭 고정 계산 안정 */
+/* === 컬럼 리사이즈가 가능한 그리드 테이블 공통 === */
+.resizable-grid{
+  position: relative;
+  overflow: auto; /* 가로 스크롤 가능 */
 }
 
-/* th에 핸들을 얹기 위해 */
-table.calc-table thead th{
-  position: sticky; /* 기존 유지 */
+/* 헤더/행을 동일한 grid template로 맞춤 */
+.resizable-grid .grid-head,
+.resizable-grid .grid-row{
+  display: grid;
+  align-items: center;
+  column-gap: 8px;
+  /* JS가 여길 갈아낄거임 */
+  grid-template-columns: var(--grid-cols);
 }
 
-/* 드래그 핸들 (헤더 오른쪽에 8px 투명 영역) */
-.th-resizer{
-  position:absolute;
-  top:0;
-  right:-4px;         /* 경계 중앙에 걸치도록 */
-  width:8px;
-  height:100%;
+/* 열 리사이저 핸들(세로줄) */
+.resizable-grid .col-resizer{
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;             /* 잡기 쉽도록 */
   cursor: col-resize;
-  user-select:none;
-  touch-action:none;
-  z-index: 50;        /* 헤더 위에서만 */
+  z-index: 50;
+  transform: translateX(-5px); /* 가운데로 맞춤 */
+  touch-action: none;
 }
 
-/* 평소에는 거의 안 보이게 */
-.th-resizer::before{
+/* 시각적으로 얇은 라인 */
+.resizable-grid .col-resizer::before{
   content:"";
   position:absolute;
-  top: 22%;
-  bottom: 22%;
-  left: 3px;
+  left: 50%;
+  top: 0;
+  bottom: 0;
   width: 2px;
+  transform: translateX(-50%);
+  background: rgba(255,120,0,0.55); /* 너가 표시한 빨간줄 느낌 */
   border-radius: 2px;
-  background: rgba(240,138,36,.0);  /* 기본: 투명 */
-  transition: background .15s ease;
+  opacity: 0.35;
 }
 
-/* 마우스 올리면만 은은하게 오렌지 */
-thead th:hover > .th-resizer::before{
-  background: rgba(240,138,36,.35);
+.resizable-grid .col-resizer:hover::before{
+  opacity: 0.9;
 }
 
-/* 드래그 중 강조 */
-body.is-colresizing thead th > .th-resizer::before{
-  background: rgba(240,138,36,.85);
-}
-
-/* 드래그 중 커서 고정 */
-body.is-colresizing{
+/* 드래그 중에는 선택 방지 */
+body.col-resizing{
+  user-select: none;
   cursor: col-resize !important;
 }
+
 
 
 
