@@ -1688,6 +1688,77 @@ table.calc-table tbody tr.calc-remark-row.row-selected .cell.block-selected{
 }
 
 
+/* =========================================================
+   ✅ FINAL FIX: td(칸) 자체를 주황으로 덮어서
+   회색 행 배경(remark/z5) 위에서도 "칸 전체"가 주황으로 보이게
+   (Chrome/Edge 최신 :has 지원)
+   ========================================================= */
+
+/* 0) td는 배경 덮기 위해 stacking 안정 */
+table.calc-table tbody td{
+  position: relative;
+  z-index: 0;
+}
+
+/* 1) block-selected가 들어있는 td 전체를 주황으로 덮기 */
+table.calc-table tbody td:has(> .cell.block-selected){
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.55),
+    rgba(240,138,36,.38)
+  ) !important;
+
+  box-shadow:
+    inset 0 0 0 2px rgba(240,138,36,.85),
+    inset 0 0 0 6px rgba(255,255,255,.35) !important;
+}
+
+/* 2) input(.cell)도 확실히 주황(혹시 다른 규칙이 덮는 경우 대비) */
+table.calc-table tbody td:has(> .cell.block-selected) > .cell.block-selected{
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.70),
+    rgba(240,138,36,.48)
+  ) !important;
+
+  border-color: rgba(240,138,36,1) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,1),
+    0 0 0 8px rgba(240,138,36,1),
+    0 14px 28px rgba(0,0,0,.20) !important;
+
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+/* 3) "비고행 산출식 복구" 같은 nth-child(6) 강제 스타일도 block-selected면 무조건 이김 */
+table.calc-table tbody tr.calc-remark-row td:nth-child(6):has(> .cell.block-selected),
+table.calc-table tbody tr.remark-row td:nth-child(6):has(> .cell.block-selected){
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.55),
+    rgba(240,138,36,.38)
+  ) !important;
+  box-shadow: inset 0 0 0 2px rgba(240,138,36,.85) !important;
+}
+
+table.calc-table tbody tr.calc-remark-row td:nth-child(6) > .cell.block-selected,
+table.calc-table tbody tr.remark-row td:nth-child(6) > .cell.block-selected{
+  background: linear-gradient(
+    180deg,
+    rgba(240,138,36,.70),
+    rgba(240,138,36,.48)
+  ) !important;
+  border-color: rgba(240,138,36,1) !important;
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,1),
+    0 0 0 8px rgba(240,138,36,1),
+    0 14px 28px rgba(0,0,0,.20) !important;
+}
+
+
+
 
 
 
