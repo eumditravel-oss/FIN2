@@ -1307,3 +1307,50 @@ tr.remark-row .cell::placeholder,
   opacity: 1 !important;
 }
 
+/* =========================
+   ✅ 비고 컬럼만 더 어둡게 (산출식 컬럼은 그대로)
+   - calc-table : 비고가 "마지막 컬럼"이라는 전제
+   - var-table  : [변수/산식/값/비고]에서 비고가 4번째 컬럼
+   - code-table : 비고가 마지막 컬럼인 경우 포함
+   ========================= */
+:root{
+  --noteBg: #e1e1e1;      /* 비고 배경(더 어둡게) */
+  --noteText: #666;       /* 비고 글자 */
+  --noteBorder: #c2c2c2;  /* 비고 테두리 */
+  --notePh: #8a8a8a;      /* 비고 placeholder */
+}
+
+/* ✅ 산출표(계산표) 비고 = 마지막 컬럼만 */
+table.calc-table tbody td:last-child .cell{
+  background: var(--noteBg) !important;
+  color: var(--noteText) !important;
+  border-color: var(--noteBorder) !important;
+}
+table.calc-table tbody td:last-child .cell::placeholder{
+  color: var(--notePh) !important;
+  opacity: 1 !important;
+}
+
+/* ✅ 변수표 비고 = 4번째 컬럼만 (변수/산식/값/비고) */
+table.var-table tbody td:nth-child(4) .cell{
+  background: var(--noteBg) !important;
+  color: var(--noteText) !important;
+  border-color: var(--noteBorder) !important;
+}
+table.var-table tbody td:nth-child(4) .cell::placeholder{
+  color: var(--notePh) !important;
+  opacity: 1 !important;
+}
+
+/* ✅ 코드표(있다면) 비고 = 마지막 컬럼만 */
+table.code-table tbody td:last-child .cell{
+  background: var(--noteBg) !important;
+  color: var(--noteText) !important;
+  border-color: var(--noteBorder) !important;
+}
+table.code-table tbody td:last-child .cell::placeholder{
+  color: var(--notePh) !important;
+  opacity: 1 !important;
+}
+
+
