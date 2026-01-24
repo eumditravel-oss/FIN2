@@ -1354,3 +1354,60 @@ table.code-table tbody td:last-child .cell::placeholder{
 }
 
 
+/* =========================================================
+   ✅ 비고 입력칸 "확실히" 구별되게 (산출식은 그대로)
+   - placeholder="비고" 인 .cell만 타겟 (가장 안전/확실)
+   ========================================================= */
+:root{
+  --noteBg: #d2d2d2;          /* 더 진한 회색 */
+  --noteBg2:#c9c9c9;          /* 살짝 그라데이션용 */
+  --noteText: #3f3f3f;        /* 글자 더 또렷 */
+  --noteBorder: #8f8f8f;      /* 테두리 확실 */
+  --notePh: #616161;          /* placeholder 진하게 */
+}
+
+/* ✅ 비고 칸만 스타일링 */
+.cell[placeholder="비고"]{
+  background: linear-gradient(180deg, var(--noteBg), var(--noteBg2)) !important;
+  color: var(--noteText) !important;
+
+  /* 오렌지 테두리 대신 "비고 전용" 테두리 */
+  border-color: var(--noteBorder) !important;
+
+  /* ✅ 왼쪽 오렌지 바 + 살짝 음영으로 구별감 */
+  box-shadow:
+    inset 6px 0 0 rgba(240,138,36,.95),
+    inset 0 0 0 1px rgba(255,255,255,.55),
+    0 2px 10px rgba(0,0,0,.06) !important;
+}
+
+/* placeholder도 더 선명 */
+.cell[placeholder="비고"]::placeholder{
+  color: var(--notePh) !important;
+  opacity: 1 !important;
+}
+
+/* 포커스 시: 비고는 "회색 기반 + 오렌지 링"으로 강조 */
+.cell[placeholder="비고"]:focus,
+.cell[placeholder="비고"][data-editing="1"]{
+  border-color: rgba(240,138,36,.85) !important;
+  box-shadow:
+    inset 6px 0 0 rgba(240,138,36,1),
+    0 0 0 4px rgba(240,138,36,.18),
+    0 8px 18px rgba(0,0,0,.10) !important;
+}
+
+/* ✅ 비고 헤더(th)도 살짝 톤 넣어서 “컬럼” 느낌 강화 (변수표는 4번째가 비고) */
+table.var-table thead th:nth-child(4){
+  background: linear-gradient(180deg, rgba(240,138,36,.14), rgba(0,0,0,.02)) !important;
+  border-bottom-color: rgba(240,138,36,.75) !important;
+}
+
+/* (옵션) 산출표/코드표에서 비고가 실제로 마지막 컬럼이라면 헤더도 같이 */
+table.calc-table thead th:last-child,
+table.code-table thead th:last-child{
+  background: linear-gradient(180deg, rgba(240,138,36,.14), rgba(0,0,0,.02)) !important;
+  border-bottom-color: rgba(240,138,36,.75) !important;
+}
+
+
