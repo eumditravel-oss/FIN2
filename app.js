@@ -1873,24 +1873,61 @@ function attachGridNav(container) {
     else if (key === "End" && e.ctrlKey) { e.preventDefault(); moveCell(t, 99999, 0); }
     else if ((key === "Delete" || key === "Del") && e.ctrlKey) {
   const grid = t.dataset.grid;
+
   if (grid === "var") {
     if (t.readOnly) return;
     e.preventDefault();
     t.value = "";
     t.dispatchEvent(new Event("input", { bubbles: true }));
+
   } else if (grid === "code") {
     e.preventDefault();
+
     const row = Number(t.dataset.row || 0);
-    if (confirm("현재 행을 삭제할까요?")) {
-      // codeMaster 0행(비고 고정) 보호까지 고려
-      if (row === 0) return;
-      state.codeMaster.splice(row, 1);
-      ensureRemarkCodeMasterTop();
-      saveState();
-      render();
-    }
+    const col = Number(t.dataset.col || 0);
+
+    if (!confirm("현재 행을 삭제할까요?")) return;
+
+    // codeMaster 0행(비고 고정) 보호
+    if (row === 0) return;
+
+    // ✅ 삭제
+    state.codeMaster.splice(row, 1);
+
+    // ✅ 삭제 후에도 최상단 고정 보장
+    ensureRemarkCodeMasterTop();
+
+    saveState();
+    render();
+
+    // ✅ 핵심: 렌더 후 포커스를 "같은 열의 다음 행"으로 복원
+    raf2(() => {
+      updateViewFillHeight();
+      updateScrollHeights();
+
+      const maxRow = Math.max(
+        0,
+        (document.querySelectorAll('input[data-grid="code"]')
+          ? Array.from(document.querySelectorAll('input[data-grid="code"]')).reduce((m, x) => {
+              const r = Number(x.dataset.row || 0);
+              return r > m ? r : m;
+            }, 0)
+          : 0)
+      );
+
+      // 삭제한 row 자리에 "아래행이 올라오므로" targetRow는 기존 row 그대로가 자연스럽다
+      const targetRow = clamp(row, 0, maxRow);
+
+      const target = document.querySelector(
+        `input[data-grid="code"][data-row="${targetRow}"][data-col="${col}"]`
+      );
+
+      safeFocus(target);
+      ensureScrollIntoView(target);
+    });
   }
 }
+
 
   }, true);
 }
