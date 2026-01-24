@@ -2790,84 +2790,7 @@ function render() {
   });
 }
 
-/* ============================
-   ✅ Init (DOM 준비 후 1회) — index.html v22 맞춤
-============================ */
-let __appInited = false;
-function initAppOnce() {
-  console.log("[FIN] initAppOnce fired");
-  if (__appInited) return;
-  __appInited = true;
 
-  // ✅ 1) 먼저 상단 버튼들(프로젝트 포함)을 bindTopButtonsOnce에서 바인딩
-  //    (여기 안에서 btnProject를 이미 getElementById로 잡고 onclick을 걸어줌)
-  try { bindTopButtonsOnce(); } catch (e) { console.warn(e); }
-
-  /* ============================
-     ✅ Shift+좌클릭 셀 블록지정 이벤트(1회 바인딩)
-     - input.cell만 대상
-     - ShiftKey면 anchor~target 사각형 블록 지정
-     ============================ */
-    if (!window.__finCellBlockBound) {
-    window.__finCellBlockBound = true;
-
-    // ✅ 산출표(calc)에서만 Shift+클릭/일반클릭을 "행 선택" 용도로 처리
-    // (코드/변수표 등 셀 블록 선택은 아래쪽 __finCellBlockBound2 로직이 담당)
-    document.addEventListener("mousedown", (e) => {
-      const input = e.target?.closest?.("input.cell");
-      if (!(input instanceof HTMLInputElement)) return;
-
-      const grid = input.dataset.grid || "";
-      const tabId = input.dataset.tab || "";
-      const row = Number(input.dataset.row || 0);
-
-      const isCalcTab =
-        grid === "calc" &&
-        (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
-
-      // calc 탭이 아니면 여기서는 아무것도 하지 않음(다른 핸들러가 처리)
-      if (!isCalcTab) return;
-
-      // ================================
-      // ✅ Shift + 좌클릭 : 행 범위 선택
-      // ================================
-      if (e.shiftKey) {
-        e.preventDefault(); // 텍스트 드래그 방지
-
-        // mousedown 시점에는 포커스가 아직 이동 전 → 기존 포커스 행을 anchor로 사용
-        let anchor = row;
-        const ae = document.activeElement;
-        if (
-          ae instanceof HTMLInputElement &&
-          ae.dataset.grid === "calc" &&
-          ae.dataset.tab === tabId
-        ) {
-          anchor = Number(ae.dataset.row || row);
-        } else if (__calcMulti.anchorRow != null) {
-          anchor = Number(__calcMulti.anchorRow);
-        }
-
-        // 컨텍스트가 다르면 anchor 기준으로 시작
-        if (!__calcMultiIsSameContext(tabId)) {
-          __calcMultiBegin(tabId, anchor);
-        } else {
-          __calcMulti.anchorRow = anchor;
-        }
-
-        __calcMultiSetRange(tabId, anchor, row);
-        __applyCalcRowSelectionStyles(tabId);
-        return;
-      }
-
-      // ================================
-      // ✅ 일반 클릭 : 기존 선택은 유지, anchor만 갱신
-      // ================================
-      __calcMulti.anchorRow = row;
-      // (의도적으로 return;  다른 셀 블록 선택 로직과 충돌 방지)
-      return;
-
-    }, true);
-  }
 
 
       /* ============================
@@ -3291,55 +3214,42 @@ if (!window.__finCellBlockBound2) {
 }
 
 
-/* =========================================================
-   ✅ initAppOnce (구조 정상화 + 1회 실행 가드)
-   ========================================================= */
+/* ============================
+   ✅ Init (DOM 준비 후 1회) — 구조 정상화
+============================ */
 let __appInited = false;
 
 function initAppOnce() {
   if (__appInited) return;
   __appInited = true;
 
-  // ✅ 3) 모달 닫기(backdrop/ESC)는 1회만 걸리도록 가드 추가
-  const modal = document.getElementById("projectModal");
-  if (modal && !modal.__finModalBound) {
-    modal.__finModalBound = true;
+  // 1) 상단 버튼 바인딩
+  try { bindTopButtonsOnce(); } catch (e) { console.warn(e); }
 
-    modal.addEventListener("click", (e) => {
-      const t = e.target;
-      if (t && t.getAttribute && t.getAttribute("data-close") === "1") closeProjectModal();
+  // 2) 최초 UI 렌더
+  try { updateProjectHeaderUI(); } catch (e) { console.warn(e); }
+  try { render(); } catch (e) { console.warn(e); }
+
+  // 3) 전역 단축키(있다면 1회 바인딩)
+  try { bindGlobalHotkeysOnce(); } catch (e) { console.warn(e); }
+
+  // 4) 레이아웃 후처리
+  try {
+    raf2(() => {
+      updateStickyVars();
+      applyPanelStickyTop();
+      updateViewFillHeight();
+      updateScrollHeights();
     });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      const m = document.getElementById("projectModal");
-      if (!m) return;
-      if (m.getAttribute("aria-hidden") === "false") closeProjectModal();
-    });
-  }
-
-  // ✅ 4) 최초 UI 반영
-  updateProjectHeaderUI();
-  render();
-
-  // ✅ 5) 전역 단축키 바인딩 (Ctrl+., Ctrl+B, Ctrl+F3, Ctrl+F10 등)
-  bindGlobalHotkeysOnce();
-
-  raf2(() => {
-    updateStickyVars();
-    applyPanelStickyTop();
-    updateViewFillHeight();
-    updateScrollHeights();
-  });
+  } catch (e) { console.warn(e); }
 }
 
-
-// ✅ DOMContentLoaded 시 init (반드시 IIFE 내부, 함수 밖)
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
 } else {
   initAppOnce();
 }
+
 })(); // ✅ IIFE 끝
 
 
