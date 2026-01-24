@@ -1697,9 +1697,13 @@ if (e.key === "Escape") {
       // recomputeSection는 activeSection만 계산하므로, 여기선 간단히 현재 저장값(value/converted)을 사용
       sec.rows.forEach((r) => {
         const code = (r.code || "").trim();
-        if (!code) return;
+if (!code) return;
 
-        const info = codeLookup(code);
+// ✅ Z 5개 이상(비고/메모용 코드 포함)은 집계에서 제외
+if (hasAtLeastFiveZ(code) || isRemarkCode(code)) return;
+
+const info = codeLookup(code);
+
         const unit = info?.unit || r.unit || "";
         const surcharge = (r.surchargePct == null ? (info?.surcharge ?? null) : r.surchargePct);
 
