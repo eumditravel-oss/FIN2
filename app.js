@@ -3216,19 +3216,51 @@ if (!window.__finCellBlockBound2) {
 
   // (1) 클릭 처리: Shift면 블록선택 / 아니면 앵커 갱신 + 기존 해제
   document.addEventListener("mousedown", (e) => {
-    const input = e.target?.closest?.("input.cell");
-    if (!(input instanceof HTMLInputElement)) return;
+  const input = e.target?.closest?.("input.cell");
+  if (!(input instanceof HTMLInputElement)) return;
 
-    // calc는 위에서 행선택 전용 mousedown이 처리하므로 여기서는 건너뜀
-    if ((input.dataset.grid || "") === "calc") return;
+  const grid = (input.dataset.grid || "");
 
+  // ✅ 산출표(calc)는 "행 선택"으로 Shift/Ctrl 클릭 지원
+  if (grid === "calc") {
+    const tabId = input.dataset.tab || "";
+    const isCalcTab = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+    if (!isCalcTab) return;
+
+    const row = Number(input.dataset.row || 0);
+
+    // Shift+클릭: 앵커~현재행 범위 선택
     if (e.shiftKey) {
-      e.preventDefault(); // 드래그 방지
-      __handleShiftClickCell(input);
-    } else {
-      __handleNormalClickCell(input);
+      e.preventDefault();
+      if (!__calcMultiIsSameContext(tabId)) __calcMultiBegin(tabId, row);
+      __calcMultiSetRange(tabId, __calcMulti.anchorRow ?? row, row);
+      __applyCalcRowSelectionStyles(tabId);
+      return;
     }
-  }, true);
+
+    // Ctrl+클릭: 현재 행 토글
+    if (e.ctrlKey) {
+      e.preventDefault();
+      __calcMultiToggleRow(tabId, row);
+      __applyCalcRowSelectionStyles(tabId);
+      return;
+    }
+
+    // 일반 클릭: 단일 선택(앵커 갱신)
+    __calcMultiBegin(tabId, row);
+    __applyCalcRowSelectionStyles(tabId);
+    return;
+  }
+
+  // ✅ code/var 등은 기존 "셀 블록선택" 로직 유지
+  if (e.shiftKey) {
+    e.preventDefault(); // 드래그 방지
+    __handleShiftClickCell(input);
+  } else {
+    __handleNormalClickCell(input);
+  }
+}, true);
+
 
   // (2) 바깥 클릭하면 블록선택 해제
   document.addEventListener("mousedown", (e) => {
