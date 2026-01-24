@@ -1567,5 +1567,62 @@ table.calc-table tbody tr.remark-row td:nth-child(6) .cell::placeholder{
 }
 
 
+/* =========================================================
+   ✅ FINAL: 비고(remark) 행에서도 block-selected가 확실히 보이게
+   - 반드시 CSS 맨 아래에 추가
+   ========================================================= */
+
+/* 비고행에서는 "배경 주황"보다 "패턴+링"이 훨씬 잘 보임 */
+table.calc-table tbody tr.remark-row .cell.block-selected,
+table.calc-table tbody tr.calc-remark-row .cell.block-selected{
+  /* ✅ 회색 위에서도 보이는 대각선 스트라이프 패턴 */
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(240,138,36,.55) 0px,
+    rgba(240,138,36,.55) 7px,
+    rgba(255,255,255,.12) 7px,
+    rgba(255,255,255,.12) 14px
+  ) !important;
+
+  /* ✅ 기본 배경도 조금 밝게 (패턴이 죽지 않게) */
+  background-color: rgba(255,255,255,.62) !important;
+
+  /* ✅ 테두리는 무조건 오렌지 */
+  border-color: rgba(240,138,36,1) !important;
+
+  /* ✅ 핵심: “흰 링 → 주황 링 → 외곽선” 순으로 강하게 */
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,.98),   /* 흰 링 */
+    0 0 0 8px rgba(240,138,36,1),      /* 주황 링 */
+    0 14px 28px rgba(0,0,0,.22),       /* 떠보이게 */
+    inset 0 0 0 2px rgba(0,0,0,.10) !important;
+
+  /* ✅ 회색 행 위에서 경계 확실 */
+  outline: 3px solid rgba(0,0,0,.28) !important;
+  outline-offset: -1px !important;
+
+  position: relative !important;
+  z-index: 2000 !important;           /* ✅ 비고행/행선택/무슨색이든 다 위 */
+}
+
+/* 포커스된 블록은 더 강하게 */
+table.calc-table tbody tr.remark-row .cell.block-selected:focus,
+table.calc-table tbody tr.calc-remark-row .cell.block-selected:focus{
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,1),
+    0 0 0 9px rgba(240,138,36,1),
+    0 0 0 14px rgba(240,138,36,.22),
+    0 18px 34px rgba(0,0,0,.26) !important;
+
+  outline: 3px solid rgba(0,0,0,.34) !important;
+  z-index: 2500 !important;
+}
+
+/* ✅ 비고행이면서 row-selected(행 선택)까지 겹쳐도 block-selected 우선 */
+table.calc-table tbody tr.remark-row.row-selected .cell.block-selected,
+table.calc-table tbody tr.calc-remark-row.row-selected .cell.block-selected{
+  z-index: 2600 !important;
+}
+
 
 
