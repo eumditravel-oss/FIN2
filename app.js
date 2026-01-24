@@ -1746,68 +1746,66 @@ if (e.key === "Escape") {
 
 
   function renderSummaryTab(srcTabId, title) {
-    const rows = buildSummaryRows(srcTabId);
+  const rows = buildSummaryRows(srcTabId);
 
-    const header = el("div", { class: "panel-header sticky-head", dataset: { sticky: "panel" } }, [
-      el("div", {}, [ el("div", { class: "panel-title" }, [title]) ]),
-      el("div", { class: "row-actions" }, [
-        el("button", { class: "smallbtn", onclick: () => { /* noop */ } }, ["집계(자동)"]),
-      ]),
-    ]);
+  const header = el("div", { class: "panel-header sticky-head", dataset: { sticky: "panel" } }, [
+    el("div", {}, [ el("div", { class: "panel-title" }, [title]) ]),
+    el("div", { class: "row-actions" }, [
+      el("button", { class: "smallbtn", onclick: () => { /* noop */ } }, ["집계(자동)"]),
+    ]),
+  ]);
 
-    const table = el("table", { class: "code-table" }, []);
-    table.style.tableLayout = "fixed";
-    table.style.width = "100%";
-    table.style.minWidth = "100%";
-    table.appendChild(buildColGroupFromWeights([0.9, 2.4, 2.4, 0.8, 0.8, 0.9, 0.9, 1.2, 1.4, 1.2]));
+  const table = el("table", { class: "code-table" }, []);
+  table.style.tableLayout = "fixed";
+  table.style.width = "100%";
+  table.style.minWidth = "100%";
+  table.appendChild(buildColGroupFromWeights([0.9, 2.4, 2.4, 0.8, 0.8, 0.9, 0.9, 1.2, 1.4, 1.2]));
 
-    const thead = el("thead", {}, [
-      el("tr", {}, [
-        el("th", {}, ["코드"]),
-        el("th", {}, ["품명"]),
-        el("th", {}, ["규격"]),
-        el("th", {}, ["단위"]),
-        el("th", {}, ["할증"]),
-        el("th", {}, ["환산단위"]),
-        el("th", {}, ["환산계수"]),
-        el("th", {}, ["수량(할증 전)"]),
-        el("th", {}, ["수량(할증 후)"]),
-        el("th", {}, ["비고"]),
-      ])
-    ]);
+  const thead = el("thead", {}, [
+    el("tr", {}, [
+      el("th", {}, ["코드"]),
+      el("th", {}, ["품명"]),
+      el("th", {}, ["규격"]),
+      el("th", {}, ["단위"]),
+      el("th", {}, ["할증"]),
+      el("th", {}, ["환산단위"]),
+      el("th", {}, ["환산계수"]),
+      el("th", {}, ["수량(할증 전)"]),
+      el("th", {}, ["수량(할증 후)"]),
+      el("th", {}, ["비고"]),
+    ])
+  ]);
 
-    const round3 = (n) => String(Math.round((Number(n) || 0) * 1000) / 1000);
+  // ✅ 이 줄이 빠져서 에러난 것
+  const tbody = el("tbody", {}, []);
 
-rows.forEach((r) => {
-  tbody.appendChild(el("tr", {}, [
-    el("td", {}, [r.code]),
-    el("td", {}, [r.name || ""]),
-    el("td", {}, [r.spec || ""]),
-    el("td", {}, [r.unit || ""]),
-    el("td", {}, [r.surchargePct == null ? "" : String(r.surchargePct)]),
-    el("td", {}, [r.convUnit || ""]),
-    el("td", {}, [r.convFactor == null ? "" : String(r.convFactor)]),
+  const round3 = (n) => String(Math.round((Number(n) || 0) * 1000) / 1000);
 
-    // ✅ 추가된 컬럼
-    el("td", {}, [round3(r.qtyBefore)]),
+  rows.forEach((r) => {
+    tbody.appendChild(el("tr", {}, [
+      el("td", {}, [r.code]),
+      el("td", {}, [r.name || ""]),
+      el("td", {}, [r.spec || ""]),
+      el("td", {}, [r.unit || ""]),
+      el("td", {}, [r.surchargePct == null ? "" : String(r.surchargePct)]),
+      el("td", {}, [r.convUnit || ""]),
+      el("td", {}, [r.convFactor == null ? "" : String(r.convFactor)]),
+      el("td", {}, [round3(r.qtyBefore)]),
+      el("td", {}, [round3(r.qtyAfter)]),
+      el("td", {}, [""]),
+    ]));
+  });
 
-    // ✅ 기존 컬럼(문구만 변경): 할증 후
-    el("td", {}, [round3(r.qtyAfter)]),
+  table.appendChild(thead);
+  table.appendChild(tbody);
 
-    el("td", {}, [""]),
-  ]));
-});
+  const scroll = el("div", { class: "table-wrap calc-scroll", dataset: { scroll: "sum" } }, [table]);
+  forceScrollStyle(scroll);
+  attachWheelLock(scroll);
 
+  return el("div", { class: "panel" }, [header, scroll]);
+}
 
-    table.appendChild(thead);
-    table.appendChild(tbody);
-
-    const scroll = el("div", { class: "table-wrap calc-scroll", dataset: { scroll: "sum" } }, [table]);
-    forceScrollStyle(scroll);
-    attachWheelLock(scroll);
-
-    return el("div", { class: "panel" }, [header, scroll]);
-  }
 
   /* ============================
      ✅ Grid Navigation (Arrow/PageUp/PageDown/Home/End)
