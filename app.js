@@ -3331,6 +3331,157 @@ document.addEventListener("keydown", (e) => {
 }, true);
 
 
+   /* =========================================================
+   ✅ Calc Table Column Resizer (Drag to resize by header)
+   - Minimal UI (thin handle)
+   - Persists widths in localStorage
+   - Works with sticky thead
+   ========================================================= */
+
+function initCalcTableColumnResize() {
+  const table = document.querySelector('table.calc-table');
+  if (!table) return;
+
+  const thead = table.querySelector('thead');
+  const headRow = thead?.querySelector('tr');
+  if (!headRow) return;
+
+  // 이미 붙어있으면 중복 방지
+  if (table.dataset.colResizeInit === "1") return;
+  table.dataset.colResizeInit = "1";
+
+  const ths = Array.from(headRow.children).filter(el => el.tagName === "TH");
+  if (ths.length < 2) return;
+
+  // colgroup이 없으면 생성해서 "실제 폭 적용"을 col로 관리
+  let colgroup = table.querySelector('colgroup');
+  if (!colgroup) {
+    colgroup = document.createElement('colgroup');
+    for (let i = 0; i < ths.length; i++) colgroup.appendChild(document.createElement('col'));
+    table.insertBefore(colgroup, table.firstChild);
+  }
+  const cols = Array.from(colgroup.children);
+
+  const storageKey = getColWidthStorageKeyForCurrentTab(table);
+
+  // 현재 th 실제 폭 기준으로 col에 초기 px 폭을 세팅
+  // (처음 1회만) => 저장된 값이 있으면 그걸 적용
+  const saved = safeParseJSON(localStorage.getItem(storageKey)) || null;
+  if (saved && Array.isArray(saved) && saved.length === cols.length) {
+    applySavedWidths(cols, saved);
+  } else {
+    const widths = ths.map(th => Math.max(60, Math.round(th.getBoundingClientRect().width)));
+    applySavedWidths(cols, widths);
+    localStorage.setItem(storageKey, JSON.stringify(widths));
+  }
+
+  // 마지막 컬럼은 핸들 안 붙임(오른쪽 끝은 조절 불편 + 레이아웃 깨짐 방지)
+  ths.forEach((th, idx) => {
+    th.style.position = th.style.position || "sticky"; // 기존 sticky 유지 (이미 sticky)
+    th.style.overflow = "visible";
+
+    if (idx === ths.length - 1) return;
+
+    // 핸들 생성
+    const handle = document.createElement('div');
+    handle.className = 'th-resizer';
+    handle.title = '드래그로 열 너비 조절';
+    th.appendChild(handle);
+
+    // 드래그 로직
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      document.body.classList.add('is-colresizing');
+
+      const startX = e.clientX;
+      const startW = getColPx(cols[idx]);
+      const nextW = getColPx(cols[idx + 1]);
+
+      // 최소폭(너무 줄이면 입력칸 깨짐 방지)
+      const MIN = 70;
+
+      const onMove = (ev) => {
+        const dx = ev.clientX - startX;
+
+        // 현재 col 늘리면 다음 col을 줄이는 방식 (총폭 유지)
+        let newW = startW + dx;
+        let newNext = nextW - dx;
+
+        if (newW < MIN) {
+          newNext -= (MIN - newW);
+          newW = MIN;
+        }
+        if (newNext < MIN) {
+          newW -= (MIN - newNext);
+          newNext = MIN;
+        }
+
+        cols[idx].style.width = `${Math.round(newW)}px`;
+        cols[idx + 1].style.width = `${Math.round(newNext)}px`;
+
+        // 저장(실시간 저장해도 되는데, 부담 줄이려면 rAF로 묶음)
+        scheduleSave();
+      };
+
+      const onUp = () => {
+        document.body.classList.remove('is-colresizing');
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        saveNow(); // 최종 저장
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  });
+
+  // ===== 저장/불러오기 유틸 =====
+  let saveRAF = 0;
+
+  function scheduleSave() {
+    if (saveRAF) return;
+    saveRAF = requestAnimationFrame(() => {
+      saveRAF = 0;
+      saveNow();
+    });
+  }
+
+  function saveNow() {
+    const widths = cols.map(c => getColPx(c));
+    localStorage.setItem(storageKey, JSON.stringify(widths));
+  }
+
+  function applySavedWidths(cols, widths) {
+    cols.forEach((c, i) => c.style.width = `${Math.max(60, Math.round(widths[i] || 60))}px`);
+  }
+
+  function getColPx(colEl) {
+    const w = parseFloat(colEl.style.width);
+    if (!isNaN(w) && w > 0) return w;
+    // style에 없으면 실제 th폭 기준 fallback
+    const th = ths[cols.indexOf(colEl)];
+    return Math.max(60, Math.round(th.getBoundingClientRect().width));
+  }
+
+  function safeParseJSON(s) {
+    try { return JSON.parse(s); } catch { return null; }
+  }
+
+  // 탭별로 저장 키 분리(철골/구조이기 등 탭마다 폭 다르게)
+  function getColWidthStorageKeyForCurrentTab(tableEl) {
+    // 프로젝트별/탭별로 키를 더 세분화하고 싶으면 여기 문자열에 projectId/activeTab을 붙이면 됨
+    const activeTab = document.querySelector('.tab.active')?.textContent?.trim() || "default";
+    return `FIN_COLWIDTH_calc_${activeTab}`;
+  }
+}
+
+/* ✅ 페이지 초기화/탭 렌더 후 1회 호출 */
+initCalcTableColumnResize();
+
+
+
 /* =========================================================
    ✅ App Init (절대 삭제 금지)
 ========================================================= */
