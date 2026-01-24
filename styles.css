@@ -1410,3 +1410,75 @@ table.calc-table tbody tr.remark-row td:nth-child(3) span{
 }
 
 
+
+/* =========================================================
+   ✅ FINAL OVERRIDE (맨 아래 붙여넣기)
+   - ZZZ(비고) 행 전체: 더 어두운 회색으로 확실히 구분
+   - 단, "산출식" 칸(빨간 박스)만 원래 색 그대로 유지
+   - 스샷 기준 컬럼: 1 No / 2 코드 / 3 품명 / 4 규격 / 5 단위 / 6 산출식
+   ========================================================= */
+
+:root{
+  --remarkRowBg2: rgba(0,0,0,.34);       /* ✅ 노란 박스 배경(더 진한 회색) */
+  --remarkRowLine2: rgba(0,0,0,.30);     /* ✅ 상/하 라인 */
+  --remarkLeftBar2: rgba(0,0,0,.40);     /* ✅ 좌측 바(회색) */
+  --remarkCellBg2: rgba(255,255,255,.58);/* ✅ 입력칸 톤다운(회색 위에서도 잘 보이게) */
+  --remarkCellBd2: rgba(0,0,0,.24);      /* ✅ 입력칸 테두리 */
+}
+
+/* 1) ZZZ 비고 행 전체(td) 배경을 더 어둡게 + 덩어리 라인 */
+table.calc-table tbody tr.calc-remark-row > td,
+table.calc-table tbody tr.remark-row > td{
+  background: var(--remarkRowBg2) !important;
+  box-shadow:
+    inset 0 2px 0 var(--remarkRowLine2),
+    inset 0 -2px 0 var(--remarkRowLine2) !important;
+}
+
+/* 2) ZZZ 비고 행: 좌측 구분 바(회색)로 더 “비고” 느낌 */
+table.calc-table tbody tr.calc-remark-row > td:first-child,
+table.calc-table tbody tr.remark-row > td:first-child{
+  box-shadow:
+    inset 6px 0 0 var(--remarkLeftBar2),
+    inset 0 2px 0 var(--remarkRowLine2),
+    inset 0 -2px 0 var(--remarkRowLine2) !important;
+}
+
+/* 3) ZZZ 비고 행 내부 입력칸(대부분)도 톤다운 */
+table.calc-table tbody tr.calc-remark-row .cell,
+table.calc-table tbody tr.remark-row .cell{
+  background: var(--remarkCellBg2) !important;
+  border-color: var(--remarkCellBd2) !important;
+  color: rgba(0,0,0,.82) !important;
+}
+
+/* =========================================================
+   ✅ 핵심: 빨간 박스(산출식 칸)만 "원래 색"으로 복구
+   - 산출식 컬럼이 6번째라서 td:nth-child(6)
+   - (만약 컬럼 순서가 다르면 숫자만 바꾸면 됩니다)
+   ========================================================= */
+
+/* 4-1) 산출식 td 자체도 비고 배경을 제거(행 배경 영향 제거) */
+table.calc-table tbody tr.calc-remark-row td:nth-child(6),
+table.calc-table tbody tr.remark-row td:nth-child(6){
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 4-2) 산출식 input(.cell)은 기존 기본 스타일(밝은 배경 + 오렌지 보더) 유지 */
+table.calc-table tbody tr.calc-remark-row td:nth-child(6) .cell,
+table.calc-table tbody tr.remark-row td:nth-child(6) .cell{
+  background: rgba(255,255,255,.96) !important;   /* 기존 cell 기본값 */
+  border-color: rgba(240,138,36,.45) !important;  /* 기존 오렌지 보더 */
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+/* (선택) 산출식 칸 placeholder도 기존처럼 */
+table.calc-table tbody tr.calc-remark-row td:nth-child(6) .cell::placeholder,
+table.calc-table tbody tr.remark-row td:nth-child(6) .cell::placeholder{
+  color: rgba(0,0,0,.35) !important;
+}
+
+
+
