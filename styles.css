@@ -1625,4 +1625,41 @@ table.calc-table tbody tr.calc-remark-row.row-selected .cell.block-selected{
 }
 
 
+/* =========================================================
+   ✅ FIX: 비고(ZZZ) 행 위에서도 block-selected가 항상 최상위
+   - 행 배경/행 강조(row-selected)보다 무조건 위
+   ========================================================= */
+
+/* 1️⃣ block-selected 자체를 최상위 레이어로 */
+.cell.block-selected{
+  position: relative !important;
+  z-index: 9999 !important;
+}
+
+/* 2️⃣ 비고(remark) 행 위의 block-selected는
+       "채움"보다 "링 + 외곽선" 위주로 */
+table.calc-table tbody tr.remark-row .cell.block-selected,
+table.calc-table tbody tr.calc-remark-row .cell.block-selected{
+
+  /* ❌ 행색과 섞이는 주황 채움 제거 */
+  background: rgba(255,255,255,.92) !important;
+
+  /* ✅ 두꺼운 오렌지 링 */
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,1),     /* 흰 링 */
+    0 0 0 7px rgba(240,138,36,1),      /* 오렌지 링 */
+    0 0 0 11px rgba(0,0,0,.18) !important; /* 대비용 외곽 */
+
+  /* ✅ 회색 행 위에서도 경계 확실 */
+  outline: 3px solid rgba(0,0,0,.35) !important;
+  outline-offset: -1px !important;
+}
+
+/* 3️⃣ 행 선택(row-selected)과 겹쳐도 block가 이김 */
+table.calc-table tbody tr.row-selected .cell.block-selected{
+  z-index: 10000 !important;
+}
+
+
+
 
