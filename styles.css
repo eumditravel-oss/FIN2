@@ -1379,4 +1379,34 @@ table.calc-table tbody tr.remark-row td:nth-child(7) .cell{
   box-shadow: none !important;
 }
 
+/* =========================================================
+   ✅ ZZZ 비고행 "품명(자동) 칸의 [비고] 칩/텍스트"가 너무 연한 문제 FIX
+   - 스샷 기준: No(1) / 코드(2) / 품명(자동)(3) ...
+   - 품명 칸(td:nth-child(3)) 안의 모든 요소 색/투명도 강제
+   ========================================================= */
+
+/* (1) 비고행 품명칸 자체를 진하게 */
+table.calc-table tbody tr.calc-remark-row td:nth-child(3),
+table.calc-table tbody tr.remark-row td:nth-child(3){
+  color: rgba(0,0,0,.92) !important;
+  font-weight: 1000 !important;
+}
+
+/* (2) 품명칸 안에 span/div 등으로 렌더된 칩/텍스트까지 전부 진하게 */
+table.calc-table tbody tr.calc-remark-row td:nth-child(3) *,
+table.calc-table tbody tr.remark-row td:nth-child(3) *{
+  color: rgba(0,0,0,.92) !important;
+  opacity: 1 !important;
+  font-weight: 1000 !important;
+}
+
+/* (3) 혹시 칩이 배경/테두리를 가지고 있으면 더 또렷하게(있어도/없어도 안전) */
+table.calc-table tbody tr.calc-remark-row td:nth-child(3) span,
+table.calc-table tbody tr.remark-row td:nth-child(3) span{
+  background: rgba(255,255,255,.65) !important;
+  border: 1px solid rgba(0,0,0,.18) !important;
+  border-radius: 8px !important;
+  padding: 2px 6px !important;
+}
+
 
