@@ -928,6 +928,150 @@ const CALC_COL_INDEX = {
 };
 
 
+/***************
+ * ✅ [ADD] 테이블(colgroup) 기반 열 드래그 리사이즈
+ * - <table> + <colgroup><col> 구조에서 th 경계 드래그로 열폭(px) 조절
+ * - localStorage에 저장/복원
+ ***************/
+function enableTableColResize(table, storageKey, opt = {}) {
+  if (!(table instanceof HTMLTableElement)) return;
+
+  const minW = Number(opt.minW ?? 60);
+  const keepTotal = (opt.keepTotal !== false); // 기본 true (옆열과 같이 늘고 줄어듦)
+
+  const colgroup = table.querySelector("colgroup");
+  const cols = colgroup ? Array.from(colgroup.querySelectorAll("col")) : [];
+  if (!cols.length) return;
+
+  const theadRow = table.querySelector("thead tr");
+  if (!theadRow) return;
+
+  const ths = Array.from(theadRow.children).filter(n => n.tagName === "TH");
+  if (ths.length !== cols.length) {
+    // th 개수와 col 개수가 다르면 안전하게 종료 (구조 다르면 적용 불가)
+    return;
+  }
+
+  // ✅ 현재 렌더된 px폭을 기준으로 시작폭 계산
+  function getCurrentWidthsPx() {
+    const rects = ths.map(th => th.getBoundingClientRect().width);
+    return rects.map(w => Math.max(minW, Math.round(w)));
+  }
+
+  // ✅ 저장값 로드
+  let widths = null;
+  try { widths = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch {}
+  if (!Array.isArray(widths) || widths.length !== cols.length) {
+    widths = getCurrentWidthsPx();
+  } else {
+    widths = widths.map(w => Math.max(minW, Math.round(Number(w) || minW)));
+  }
+
+  // ✅ colgroup에 px폭 적용
+  function applyWidths() {
+    cols.forEach((c, i) => {
+      c.style.width = `${Math.max(minW, Math.round(widths[i]))}px`;
+    });
+  }
+
+  function saveWidths() {
+    try { localStorage.setItem(storageKey, JSON.stringify(widths)); } catch {}
+  }
+
+  // th에 핸들 붙이기 (중복 제거)
+  ths.forEach((th) => {
+    const old = th.querySelector(":scope > .col-resize-handle");
+    if (old) old.remove();
+    th.style.position = "relative";
+    th.style.userSelect = "none";
+  });
+
+  // 마지막 열은 경계가 없으니 핸들 제외
+  for (let i = 0; i < ths.length - 1; i++) {
+    const th = ths[i];
+    const handle = document.createElement("div");
+    handle.className = "col-resize-handle";
+    handle.dataset.index = String(i);
+
+    // ✅ CSS 없어도 동작하도록 인라인 스타일
+    handle.style.position = "absolute";
+    handle.style.top = "0";
+    handle.style.right = "-4px";
+    handle.style.width = "8px";
+    handle.style.height = "100%";
+    handle.style.cursor = "col-resize";
+    handle.style.touchAction = "none";
+    handle.style.zIndex = "5";
+
+    // 시각적으로 아주 약하게만(원하면 숫자 조절)
+    handle.style.background = "transparent";
+
+    th.appendChild(handle);
+  }
+
+  applyWidths();
+
+  let drag = null;
+
+  function onPointerMove(e) {
+    if (!drag) return;
+
+    const dx = e.clientX - drag.startX;
+    let a = drag.wA + dx;
+    let b = drag.wB - dx;
+
+    // 최소폭 보정
+    if (a < minW) { b -= (minW - a); a = minW; }
+    if (keepTotal) {
+      if (b < minW) { a -= (minW - b); b = minW; }
+    }
+
+    widths[drag.i] = a;
+    if (keepTotal) widths[drag.i + 1] = b;
+
+    applyWidths();
+  }
+
+  function onPointerUp() {
+    if (!drag) return;
+    drag = null;
+    document.body.classList.remove("col-resizing");
+    window.removeEventListener("pointermove", onPointerMove, true);
+    window.removeEventListener("pointerup", onPointerUp, true);
+    window.removeEventListener("pointercancel", onPointerUp, true);
+    saveWidths();
+  }
+
+  table.addEventListener("pointerdown", (e) => {
+    const h = e.target?.closest?.(".col-resize-handle");
+    if (!h) return;
+
+    const i = Number(h.dataset.index);
+    if (!Number.isFinite(i)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 드래그 시작 시점의 폭을 "현재 상태"로 동기화
+    widths = widths && widths.length === cols.length ? widths : getCurrentWidthsPx();
+    applyWidths();
+
+    drag = {
+      i,
+      startX: e.clientX,
+      wA: widths[i],
+      wB: widths[i + 1],
+    };
+
+    document.body.classList.add("col-resizing");
+    window.addEventListener("pointermove", onPointerMove, true);
+    window.addEventListener("pointerup", onPointerUp, true);
+    window.addEventListener("pointercancel", onPointerUp, true);
+  }, true);
+}
+
+   
+
   /***************
    * ✅ Help
    ***************/
@@ -1252,10 +1396,14 @@ const CALC_COL_INDEX = {
     const workArea = el("div", { class: "work-area" }, [topPane, resizer, bottomPane]);
 
     raf2(() => {
-      attachSplitResizer(resizer, topPane);
-      updateViewFillHeight();
-      updateScrollHeights();
-    });
+  attachSplitResizer(resizer, topPane);
+  updateViewFillHeight();
+  updateScrollHeights();
+
+  // ✅ [ADD] 산출표 열 드래그 리사이즈(탭별 저장)
+  const tbl = scroll.querySelector("table.calc-table");
+  enableTableColResize(tbl, `FIN_COLWIDTHS_calc_${tabId}`, { minW: 60, keepTotal: true });
+});
 
     return workArea;
   }
