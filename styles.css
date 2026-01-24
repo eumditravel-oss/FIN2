@@ -1276,3 +1276,34 @@ tr.remark-row select{
   background: rgba(0,0,0,.06);
 }
 
+
+/* =========================
+   ✅ 비고(ZZZ) 행 톤 다운(더 어둡게) - OVERRIDE
+   맨 아래에 추가하세요
+========================= */
+:root{
+  --remarkBg: #e7e7e7;     /* 배경 더 어둡게 */
+  --remarkText: #6f6f6f;   /* 글자 더 진하게 */
+  --remarkBorder: #c9c9c9; /* 테두리 더 진하게 */
+  --remarkPh: #8f8f8f;     /* placeholder 더 진하게 */
+}
+
+tr.calc-remark-row td,
+tr.calc-remark-row .cell,
+tr.remark-row td,
+tr.remark-row .cell,
+.calc-remark-row input,
+tr.calc-remark-row select,
+tr.remark-row select{
+  background: var(--remarkBg) !important;
+  color: var(--remarkText) !important;
+  border-color: var(--remarkBorder) !important;
+}
+
+tr.calc-remark-row .cell::placeholder,
+tr.remark-row .cell::placeholder,
+.calc-remark-row input::placeholder{
+  color: var(--remarkPh) !important;
+  opacity: 1 !important;
+}
+
