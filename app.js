@@ -3269,11 +3269,11 @@ if (!window.__finCellBlockBound2) {
     __clearCellBlockSelection();
   }, true);
 
-  // (3) Ctrl+C : 선택된 블록이 있을 때만 가로채서 복사
+   // (3) Ctrl+C : 선택된 블록이 있을 때만 가로채서 복사
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
 
-    // input 편집 중이면(커서 선택 복사) 기본 동작 유지
+    // input 편집 중이면 기본 복사 유지
     const ae = document.activeElement;
     if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
 
@@ -3287,40 +3287,51 @@ if (!window.__finCellBlockBound2) {
 }
 
 
-/* ============================
-   ✅ Init (DOM 준비 후 1회) — 구조 정상화
-============================ */
-let __appInited = false;
+/* =========================================================
+   ✅ ESC / Ctrl+Z : 블록 선택 해제 (안전하게)
+========================================================= */
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" && !(e.ctrlKey && e.key.toLowerCase() === "z")) return;
 
-function initAppOnce() {
-  if (__appInited) return;
-  __appInited = true;
+  const hasCellBlock = !!document.querySelector("input.cell.block-selected");
+  if (hasCellBlock) {
+    document.querySelectorAll("input.cell.block-selected")
+      .forEach(el => el.classList.remove("block-selected"));
+  }
 
-  // 1) 상단 버튼 바인딩
-  try { bindTopButtonsOnce(); } catch (e) { console.warn(e); }
+  // 산출표 다중 선택도 같이 해제
+  if (typeof __calcMultiClear === "function") {
+    try { __calcMultiClear(); } catch {}
+    if (typeof __applyCalcRowSelectionStyles === "function") {
+      try { __applyCalcRowSelectionStyles(state?.activeTab); } catch {}
+    }
+  }
+}, true);
 
-  // 2) 최초 UI 렌더
-  try { updateProjectHeaderUI(); } catch (e) { console.warn(e); }
-  try { render(); } catch (e) { console.warn(e); }
 
-  // 3) 전역 단축키(있다면 1회 바인딩)
-  try { bindGlobalHotkeysOnce(); } catch (e) { console.warn(e); }
+/* =========================================================
+   ✅ App Init (절대 삭제 금지)
+========================================================= */
+function init() {
+  try { updateProjectHeaderUI(); } catch {}
+  try { bindTopButtonsOnce(); } catch {}
+  try { bindGlobalHotkeysOnce(); } catch {}
 
-  // 4) 레이아웃 후처리
-  try {
-    raf2(() => {
-      updateStickyVars();
-      applyPanelStickyTop();
-      updateViewFillHeight();
-      updateScrollHeights();
-    });
-  } catch (e) { console.warn(e); }
+  try { render(); } catch (e) { console.error(e); }
+
+  raf2(() => {
+    try { updateStickyVars(); } catch {}
+    try { applyPanelStickyTop(); } catch {}
+    try { updateViewFillHeight(); } catch {}
+    try { updateScrollHeights(); } catch {}
+  });
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initAppOnce, { once: true });
+  document.addEventListener("DOMContentLoaded", init);
 } else {
-  initAppOnce();
+  init();
 }
 
-})(); // ✅ IIFE 끝
+})(); // ✅ IIFE 정상 종료
+
