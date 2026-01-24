@@ -3628,4 +3628,6 @@ if (document.readyState === "loading") {
   init();
 }
 
+})(); // ✅ IIFE 정상 종료
+
 
