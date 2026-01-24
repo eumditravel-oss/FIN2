@@ -3232,6 +3232,14 @@ function __setAnchor(input) {
   __finBlockSel.anchor = k;
 }
 
+/* =========================================================
+   ✅ Cell Block Selection + Calc Row Multi-Select (SAFE v1)
+   - code/var: Shift 드래그(사각 블록) + Ctrl+C TSV 복사
+   - calc: Shift(범위행) / Ctrl(토글행)
+   - ESC / Ctrl+Z: 선택 해제
+   - ✅ 중복 바인딩 방지(전역 플래그)
+========================================================= */
+
 function __applyCellBlockSelection(anchorKey, targetKey) {
   if (!anchorKey?.grid || !targetKey?.grid) return;
   if (!__sameContext(anchorKey, targetKey)) return;
@@ -3258,9 +3266,8 @@ function __applyCellBlockSelection(anchorKey, targetKey) {
 function __handleNormalClickCell(input) {
   if (!(input instanceof HTMLInputElement)) return;
 
-  // ✅ calc는 행선택 로직이 전담하므로 여기서 제외
   const grid = input.dataset.grid || "";
-  if (grid === "calc") return;
+  if (grid === "calc") return; // calc는 행선택 전담
 
   __clearCellBlockSelection();
   __setAnchor(input);
@@ -3270,13 +3277,12 @@ function __handleShiftClickCell(input) {
   if (!(input instanceof HTMLInputElement)) return;
 
   const grid = input.dataset.grid || "";
-  // ✅ calc는 위에서 행선택 전용으로 처리하므로 셀블록은 제외
-  if (grid === "calc") return;
+  if (grid === "calc") return; // calc는 행선택 전담
 
   const targetKey = __getCellKey(input);
   if (!targetKey.grid) return;
 
-  // anchor가 없거나 컨텍스트 다르면 anchor를 현재로 잡고 1셀만 선택
+  // anchor 없거나 컨텍스트 다르면: 현재를 anchor로 + 1셀 선택
   if (!__finBlockSel.anchor || !__sameContext(__finBlockSel.anchor, targetKey)) {
     __clearCellBlockSelection();
     __setAnchor(input);
@@ -3284,7 +3290,7 @@ function __handleShiftClickCell(input) {
     return;
   }
 
-  // 기존 선택 해제 후, 사각형 블록 선택 적용
+  // 기존 선택 해제 후 사각형 블록 선택
   __clearCellBlockSelection();
   __applyCellBlockSelection(__finBlockSel.anchor, targetKey);
 }
@@ -3294,7 +3300,6 @@ function __copySelectedBlockToClipboard() {
   const selected = Array.from(document.querySelectorAll("input.cell.block-selected"));
   if (!selected.length) return false;
 
-  // 컨텍스트 기준(같은 grid/tab만)
   const firstKey = __getCellKey(selected[0]);
   const ctxCells = selected
     .map(inp => ({ inp, k: __getCellKey(inp) }))
@@ -3302,19 +3307,14 @@ function __copySelectedBlockToClipboard() {
 
   if (!ctxCells.length) return false;
 
-  // 범위 계산
   const rows = ctxCells.map(x => x.k.row);
   const cols = ctxCells.map(x => x.k.col);
   const r1 = Math.min(...rows), r2 = Math.max(...rows);
   const c1 = Math.min(...cols), c2 = Math.max(...cols);
 
-  // (row,col)->value 맵
   const map = new Map();
-  ctxCells.forEach(({ inp, k }) => {
-    map.set(`${k.row},${k.col}`, inp.value ?? "");
-  });
+  ctxCells.forEach(({ inp, k }) => map.set(`${k.row},${k.col}`, inp.value ?? ""));
 
-  // TSV 만들기
   const lines = [];
   for (let r = r1; r <= r2; r++) {
     const line = [];
@@ -3325,9 +3325,13 @@ function __copySelectedBlockToClipboard() {
   }
   const tsv = lines.join("\n");
 
-  try {
-    navigator.clipboard?.writeText(tsv);
-  } catch {
+  const write = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(tsv);
+        return true;
+      }
+    } catch {}
     // fallback
     const ta = document.createElement("textarea");
     ta.value = tsv;
@@ -3339,74 +3343,82 @@ function __copySelectedBlockToClipboard() {
     ta.select();
     try { document.execCommand("copy"); } catch {}
     document.body.removeChild(ta);
-  }
+    return true;
+  };
+
+  write();
   return true;
 }
 
-// ✅ 블록선택/앵커 관련 전역 이벤트 바인딩(1회)
-if (!window.__finCellBlockBound2) {
-  window.__finCellBlockBound2 = true;
+/* =========================================================
+   ✅ Global bindings (1회만)
+========================================================= */
+if (!window.__finCellBlockBound_SAFE1) {
+  window.__finCellBlockBound_SAFE1 = true;
 
-  // (1) 클릭 처리: Shift면 블록선택 / 아니면 앵커 갱신 + 기존 해제
+  // (1) 클릭: calc는 행선택 / 그 외는 셀 블록선택
   document.addEventListener("mousedown", (e) => {
-  const input = e.target?.closest?.("input.cell");
-  if (!(input instanceof HTMLInputElement)) return;
+    const input = e.target?.closest?.("input.cell");
+    if (!(input instanceof HTMLInputElement)) return;
 
-  const grid = (input.dataset.grid || "");
+    const grid = (input.dataset.grid || "");
 
-  // ✅ 산출표(calc)는 "행 선택"으로 Shift/Ctrl 클릭 지원
-  if (grid === "calc") {
-    const tabId = input.dataset.tab || "";
-    const isCalcTab = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
-    if (!isCalcTab) return;
+    // ✅ 산출표(calc): 행 선택
+    if (grid === "calc") {
+      const tabId = input.dataset.tab || "";
+      const isCalcTab = (tabId === "steel" || tabId === "steel_sub" || tabId === "support");
+      if (!isCalcTab) return;
 
-    const row = Number(input.dataset.row || 0);
+      const row = Number(input.dataset.row || 0);
 
-    // Shift+클릭: 앵커~현재행 범위 선택
+      // Shift: 앵커~현재행 범위
+      if (e.shiftKey) {
+        e.preventDefault();
+        if (typeof __calcMultiIsSameContext === "function" && !__calcMultiIsSameContext(tabId)) {
+          if (typeof __calcMultiBegin === "function") __calcMultiBegin(tabId, row);
+        }
+        if (typeof __calcMultiSetRange === "function") {
+          const a = (__calcMulti?.anchorRow ?? row);
+          __calcMultiSetRange(tabId, a, row);
+        }
+        if (typeof __applyCalcRowSelectionStyles === "function") __applyCalcRowSelectionStyles(tabId);
+        return;
+      }
+
+      // Ctrl: 토글
+      if (e.ctrlKey) {
+        e.preventDefault();
+        if (typeof __calcMultiToggleRow === "function") __calcMultiToggleRow(tabId, row);
+        if (typeof __applyCalcRowSelectionStyles === "function") __applyCalcRowSelectionStyles(tabId);
+        return;
+      }
+
+      // 일반 클릭: 단일 선택(앵커 갱신)
+      if (typeof __calcMultiBegin === "function") __calcMultiBegin(tabId, row);
+      if (typeof __applyCalcRowSelectionStyles === "function") __applyCalcRowSelectionStyles(tabId);
+      return;
+    }
+
+    // ✅ code/var 등: 셀 블록선택
     if (e.shiftKey) {
-      e.preventDefault();
-      if (!__calcMultiIsSameContext(tabId)) __calcMultiBegin(tabId, row);
-      __calcMultiSetRange(tabId, __calcMulti.anchorRow ?? row, row);
-      __applyCalcRowSelectionStyles(tabId);
-      return;
+      e.preventDefault(); // 드래그 방지
+      __handleShiftClickCell(input);
+    } else {
+      __handleNormalClickCell(input);
     }
+  }, true);
 
-    // Ctrl+클릭: 현재 행 토글
-    if (e.ctrlKey) {
-      e.preventDefault();
-      __calcMultiToggleRow(tabId, row);
-      __applyCalcRowSelectionStyles(tabId);
-      return;
-    }
-
-    // 일반 클릭: 단일 선택(앵커 갱신)
-    __calcMultiBegin(tabId, row);
-    __applyCalcRowSelectionStyles(tabId);
-    return;
-  }
-
-  // ✅ code/var 등은 기존 "셀 블록선택" 로직 유지
-  if (e.shiftKey) {
-    e.preventDefault(); // 드래그 방지
-    __handleShiftClickCell(input);
-  } else {
-    __handleNormalClickCell(input);
-  }
-}, true);
-
-
-  // (2) 바깥 클릭하면 블록선택 해제
+  // (2) 바깥 클릭: 셀 블록선택 해제 (calc 행선택은 유지)
   document.addEventListener("mousedown", (e) => {
     const input = e.target?.closest?.("input.cell");
     if (input) return;
     __clearCellBlockSelection();
   }, true);
 
-   // (3) Ctrl+C : 선택된 블록이 있을 때만 가로채서 복사
+  // (3) Ctrl+C: 블록선택이 있을 때만 TSV로 가로채기
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C"))) return;
 
-    // input 편집 중이면 기본 복사 유지
     const ae = document.activeElement;
     if (ae instanceof HTMLInputElement && ae.dataset.editing === "1") return;
 
@@ -3419,35 +3431,42 @@ if (!window.__finCellBlockBound2) {
   }, true);
 }
 
+/* =========================================================
+   ✅ ESC / Ctrl+Z : 선택 해제 (바인딩 1회)
+========================================================= */
+if (!window.__finEscClearBound_SAFE1) {
+  window.__finEscClearBound_SAFE1 = true;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" && !(e.ctrlKey && e.key.toLowerCase() === "z")) return;
+
+    // 셀 블록 해제
+    const blocks = document.querySelectorAll("input.cell.block-selected");
+    if (blocks.length) {
+      blocks.forEach(el => el.classList.remove("block-selected"));
+    }
+
+    // calc 다중선택 해제
+    if (typeof __calcMultiClear === "function") {
+      try { __calcMultiClear(); } catch {}
+      // 마지막으로 사용한 tabId가 있으면 그걸 쓰고, 없으면 state.activeTab 시도
+      const tabId =
+        (__calcMulti?.tabId) ||
+        (document.querySelector('table.calc-table input.cell[data-tab]')?.dataset?.tab) ||
+        (typeof state !== "undefined" ? state?.activeTab : null);
+
+      if (typeof __applyCalcRowSelectionStyles === "function") {
+        try { __applyCalcRowSelectionStyles(tabId); } catch {}
+      }
+    }
+  }, true);
+}
 
 /* =========================================================
-   ✅ ESC / Ctrl+Z : 블록 선택 해제 (안전하게)
+   ✅ Calc Table Column Resizer (SAFE v1)
+   - 탭별 저장키 분리
+   - 테이블이 재렌더되어도 "현재 DOM" 기준으로 재초기화 가능
 ========================================================= */
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape" && !(e.ctrlKey && e.key.toLowerCase() === "z")) return;
-
-  const hasCellBlock = !!document.querySelector("input.cell.block-selected");
-  if (hasCellBlock) {
-    document.querySelectorAll("input.cell.block-selected")
-      .forEach(el => el.classList.remove("block-selected"));
-  }
-
-  // 산출표 다중 선택도 같이 해제
-  if (typeof __calcMultiClear === "function") {
-    try { __calcMultiClear(); } catch {}
-    if (typeof __applyCalcRowSelectionStyles === "function") {
-      try { __applyCalcRowSelectionStyles(state?.activeTab); } catch {}
-    }
-  }
-}, true);
-
-
-   /* =========================================================
-   ✅ Calc Table Column Resizer (Drag to resize by header)
-   - Minimal UI (thin handle)
-   - Persists widths in localStorage
-   - Works with sticky thead
-   ========================================================= */
 
 function initCalcTableColumnResize() {
   const table = document.querySelector('table.calc-table');
@@ -3457,14 +3476,14 @@ function initCalcTableColumnResize() {
   const headRow = thead?.querySelector('tr');
   if (!headRow) return;
 
-  // 이미 붙어있으면 중복 방지
+  // ✅ 이 테이블 DOM에 대해서만 중복 방지
   if (table.dataset.colResizeInit === "1") return;
   table.dataset.colResizeInit = "1";
 
   const ths = Array.from(headRow.children).filter(el => el.tagName === "TH");
   if (ths.length < 2) return;
 
-  // colgroup이 없으면 생성해서 "실제 폭 적용"을 col로 관리
+  // colgroup 없으면 생성
   let colgroup = table.querySelector('colgroup');
   if (!colgroup) {
     colgroup = document.createElement('colgroup');
@@ -3473,11 +3492,9 @@ function initCalcTableColumnResize() {
   }
   const cols = Array.from(colgroup.children);
 
-  const storageKey = getColWidthStorageKeyForCurrentTab(table);
+  const storageKey = getColWidthStorageKeyForCurrentTab();
 
-  // 현재 th 실제 폭 기준으로 col에 초기 px 폭을 세팅
-  // (처음 1회만) => 저장된 값이 있으면 그걸 적용
-  const saved = safeParseJSON(localStorage.getItem(storageKey)) || null;
+  const saved = safeParseJSON(localStorage.getItem(storageKey));
   if (saved && Array.isArray(saved) && saved.length === cols.length) {
     applySavedWidths(cols, saved);
   } else {
@@ -3486,20 +3503,20 @@ function initCalcTableColumnResize() {
     localStorage.setItem(storageKey, JSON.stringify(widths));
   }
 
-  // 마지막 컬럼은 핸들 안 붙임(오른쪽 끝은 조절 불편 + 레이아웃 깨짐 방지)
+  // 핸들 붙이기(마지막 컬럼 제외)
   ths.forEach((th, idx) => {
-    th.style.position = th.style.position || "sticky"; // 기존 sticky 유지 (이미 sticky)
-    th.style.overflow = "visible";
-
     if (idx === ths.length - 1) return;
 
-    // 핸들 생성
+    // 이미 핸들이 있으면 중복 생성 방지
+    if (th.querySelector(".th-resizer")) return;
+
+    th.style.overflow = "visible";
+
     const handle = document.createElement('div');
     handle.className = 'th-resizer';
     handle.title = '드래그로 열 너비 조절';
     th.appendChild(handle);
 
-    // 드래그 로직
     handle.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -3507,16 +3524,14 @@ function initCalcTableColumnResize() {
       document.body.classList.add('is-colresizing');
 
       const startX = e.clientX;
-      const startW = getColPx(cols[idx]);
-      const nextW = getColPx(cols[idx + 1]);
+      const startW = getColPx(cols[idx], ths[idx]);
+      const nextW  = getColPx(cols[idx + 1], ths[idx + 1]);
 
-      // 최소폭(너무 줄이면 입력칸 깨짐 방지)
       const MIN = 70;
 
       const onMove = (ev) => {
         const dx = ev.clientX - startX;
 
-        // 현재 col 늘리면 다음 col을 줄이는 방식 (총폭 유지)
         let newW = startW + dx;
         let newNext = nextW - dx;
 
@@ -3532,7 +3547,6 @@ function initCalcTableColumnResize() {
         cols[idx].style.width = `${Math.round(newW)}px`;
         cols[idx + 1].style.width = `${Math.round(newNext)}px`;
 
-        // 저장(실시간 저장해도 되는데, 부담 줄이려면 rAF로 묶음)
         scheduleSave();
       };
 
@@ -3540,17 +3554,15 @@ function initCalcTableColumnResize() {
         document.body.classList.remove('is-colresizing');
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
-        saveNow(); // 최종 저장
+        saveNow();
       };
 
       window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointerup', onUp, { once: true });
     });
   });
 
-  // ===== 저장/불러오기 유틸 =====
   let saveRAF = 0;
-
   function scheduleSave() {
     if (saveRAF) return;
     saveRAF = requestAnimationFrame(() => {
@@ -3560,7 +3572,7 @@ function initCalcTableColumnResize() {
   }
 
   function saveNow() {
-    const widths = cols.map(c => getColPx(c));
+    const widths = cols.map((c, i) => getColPx(c, ths[i]));
     localStorage.setItem(storageKey, JSON.stringify(widths));
   }
 
@@ -3568,30 +3580,29 @@ function initCalcTableColumnResize() {
     cols.forEach((c, i) => c.style.width = `${Math.max(60, Math.round(widths[i] || 60))}px`);
   }
 
-  function getColPx(colEl) {
+  function getColPx(colEl, thEl) {
     const w = parseFloat(colEl.style.width);
     if (!isNaN(w) && w > 0) return w;
-    // style에 없으면 실제 th폭 기준 fallback
-    const th = ths[cols.indexOf(colEl)];
-    return Math.max(60, Math.round(th.getBoundingClientRect().width));
+    return Math.max(60, Math.round(thEl.getBoundingClientRect().width));
   }
 
   function safeParseJSON(s) {
     try { return JSON.parse(s); } catch { return null; }
   }
 
-  // 탭별로 저장 키 분리(철골/구조이기 등 탭마다 폭 다르게)
-  function getColWidthStorageKeyForCurrentTab(tableEl) {
-    // 프로젝트별/탭별로 키를 더 세분화하고 싶으면 여기 문자열에 projectId/activeTab을 붙이면 됨
-    const activeTab = document.querySelector('.tab.active')?.textContent?.trim() || "default";
-    return `FIN_COLWIDTH_calc_${activeTab}`;
+  function getColWidthStorageKeyForCurrentTab() {
+    // ✅ tabId 우선(steel/steel_sub/support) -> 없으면 UI 텍스트
+    const tabId =
+      (document.querySelector('table.calc-table input.cell[data-tab]')?.dataset?.tab) ||
+      (document.querySelector('.tab.active')?.dataset?.tab) ||
+      (document.querySelector('.tab.active')?.textContent?.trim()) ||
+      "default";
+    return `FIN_COLWIDTH_calc_${tabId}`;
   }
 }
 
-/* ✅ 페이지 초기화/탭 렌더 후 1회 호출 */
+// ✅ 페이지 초기화/탭 렌더 후 1회 호출
 initCalcTableColumnResize();
-
-
 
 /* =========================================================
    ✅ App Init (절대 삭제 금지)
@@ -3617,5 +3628,4 @@ if (document.readyState === "loading") {
   init();
 }
 
-})(); // ✅ IIFE 정상 종료
 
