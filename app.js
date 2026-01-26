@@ -963,48 +963,80 @@ function enableTableColResize(table, storageKey, opt = {}) {
    
 
   /***************
-   * ✅ Help
-   ***************/
-  function buildHelpPayload() {
-    return {
-      title: "FIN 산출자료 도움말",
-      sections: [
-        { title: "코드 선택(팝업)", items: [
-          "Ctrl+. : 코드 선택 창 열기",
-          "코드 선택 창에서 Ctrl+B : 다중선택",
-          "코드 선택 창에서 Ctrl+Enter : 삽입",
-        ]},
+ * ✅ Help
+ ***************/
+function buildHelpPayload() {
+  return {
+    title: "FIN 산출자료 도움말",
+    sections: [
+      {
+        title: "코드 선택(팝업)",
+        items: [
+          "Ctrl + . : 코드 선택 창 열기 (프로젝트 선택 상태에서만)",
+          "코드 선택 창에서 Ctrl + B : 다중 선택",
+          "코드 선택 창에서 Ctrl + Enter : 선택 코드 삽입"
+        ]
+      },
 
-        { title: "표 이동/편집(공통)", items: [
-          "방향키: 셀 이동",
-          "F2: 편집 모드(읽기전용 셀 제외)",
-          "편집 모드에서 Enter: 편집 종료",
-          "PageUp / PageDown: 한 페이지 단위로 위/아래 이동(현재 열 유지)",
-          "Ctrl+Home / Ctrl+End: 최상단/최하단으로 이동(현재 열 유지)"
-        ]},
-        { title: "행 추가/삭제", items: [
-          "Ctrl+F3: 현재 행 아래 행 추가",
-          "Shift+Ctrl+F3: +10행 추가",
-          "Ctrl+Del: 삭제(확인창) - 산출표/코드표는 현재 '행' 삭제, 변수표는 현재 '셀' 비움",
-          "ESC: (산출표 다중선택 중) 다중선택 취소"
-        ]},
-        { title: "산출 탭", items: [
-          "구분 리스트: ↑/↓ 로 이동 및 선택",
-          "구분/변수 영역 높이 조절: 중간 점선 바(리사이저)를 드래그"
-        ]},
-        { title: "산출표 다중선택", items: [
-          "Shift+B: 다중선택 모드 토글",
-          "Shift+↑ / Shift+↓: 다중선택 범위 확장",
-          "Ctrl+Del: (다중선택 중) 선택된 행들을 한 번에 삭제",
-          "Ctrl+G: (다중선택 중) 선택된 행들을 현재 행 아래로 복사/삽입"
-        ]},
-        { title: "엑셀 내보내기/가져오기", items: [
-          "내보내기(EXCEL): 선택 모달에서 탭 선택 후 .xlsx 다운로드",
-          "가져오기(EXCEL): 'Codes(또는 코드)' 시트 기반으로 codeMaster 갱신"
-        ]},
-      ]
-    };
-  }
+      {
+        title: "표 이동 / 편집 (공통)",
+        items: [
+          "방향키 ↑ ↓ ← → : 셀 이동",
+          "F2 : 편집 모드 진입 (읽기 전용 셀 제외)",
+          "편집 모드에서 Enter : 편집 종료",
+          "PageUp / PageDown : 한 페이지 단위 위/아래 이동 (현재 열 유지)",
+          "Ctrl + Home / Ctrl + End : 최상단 / 최하단 이동 (현재 열 유지)"
+        ]
+      },
+
+      {
+        title: "행 추가 / 삭제",
+        items: [
+          "Ctrl + F3 : 현재 행 아래에 행 1개 추가",
+          "Shift + Ctrl + F3 : 현재 행 아래에 행 10개 추가",
+          "Ctrl + Del : 삭제 (확인창 표시)",
+          "ESC : 선택 해제 (셀 블록 / 산출표 행 선택)"
+        ]
+      },
+
+      {
+        title: "선택 / 다중선택 (중요)",
+        items: [
+          "Shift + 클릭 : 셀 블록 선택 (사각형 영역)",
+          "Ctrl + 클릭 (산출표) : 행 선택 토글",
+          "Shift + 클릭 (산출표) : 연속 행 선택",
+          "Ctrl + B : 현재 행 선택 토글 (산출표 전용)",
+          "Ctrl + Z : 선택이 있을 때 → 선택 해제 / 선택이 없을 때 → 기본 Undo"
+        ]
+      },
+
+      {
+        title: "산출 탭",
+        items: [
+          "구분 리스트 : ↑ / ↓ 로 이동 및 선택",
+          "구분 / 변수 영역 높이 조절 : 점선 리사이저 바 드래그",
+          "산출표 열 너비 조절 : 헤더 경계(회색 가이드) 드래그"
+        ]
+      },
+
+      {
+        title: "빠른 입력 (산출표 전용)",
+        items: [
+          "Ctrl + F10 : 현재 행 아래에 1행 추가 + 비고 코드(ZZZ…) 자동 입력"
+        ]
+      },
+
+      {
+        title: "엑셀 내보내기 / 가져오기",
+        items: [
+          "내보내기(EXCEL) : 선택한 탭 기준으로 .xlsx 다운로드",
+          "가져오기(EXCEL) : Codes(또는 코드) 시트 기준으로 codeMaster 갱신"
+        ]
+      }
+    ]
+  };
+}
+
 
   function openHelpWindow() {
     const w = window.open("help.html", "FIN_HELP", "width=980,height=820");
